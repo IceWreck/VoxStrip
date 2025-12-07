@@ -1,3 +1,15 @@
+// Package blobstore provides storage abstraction for binary files associated with songs.
+// Separates file storage from metadata store, enabling different storage backends.
+//
+// Each song ID can have multiple file types:
+// - original: Uploaded audio files
+// - vocal: Separated vocal tracks
+// - instrumental: Separated instrumental tracks
+// - cover_art: Album cover images
+//
+// FileSystemStore organizes files by type under base_path/{filetype}/{songID}.{ext}
+// This allows independent scaling of metadata and file storage, and easy backend migration.
+
 package blobstore
 
 import (
