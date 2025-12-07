@@ -5,80 +5,98 @@ package voxstrip.v1;
 option go_package = "github.com/IceWreck/VoxStrip/gen/voxstrip/v1;voxstripv1";
 
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/empty.proto";
+
+// RPC
 
 service KaraokeService {
-  // Import operations
   rpc ImportSongs(ImportSongsRequest) returns (ImportSongsResponse);
-  
-  // Library management
   rpc ListSongs(ListSongsRequest) returns (ListSongsResponse);
-  rpc GetSong(GetSongRequest) returns (Song);
-  rpc DeleteSong(DeleteSongRequest) returns (google.protobuf.Empty);
-  
-  // Export operations
-  rpc ExportKaraoke(ExportKaraokeRequest) returns (ExportKaraokeResponse);
-  
-  // Queue management
-  rpc GetQueueStatus(GetQueueStatusRequest) returns (QueueStatus);
+  rpc GetSong(GetSongRequest) returns (GetSongResponse);
+  rpc GetCoverArt(GetCoverArtRequest) returns (GetCoverArtResponse);
+  rpc DeleteSong(DeleteSongRequest) returns (DeleteSongResponse);
+  rpc DownloadAudio(DownloadAudioRequest) returns (DownloadAudioResponse);
 }
 
-// Core metadata structure
+// Shared
+
 message SongMetadata {
   string title = 1;
   string artist = 2;
   string album = 3;
   string album_artist = 4;
   string genre = 5;
-  bytes cover_art = 6;    // Image data
-  string lyrics = 7;      // LRC format text (stored in DB)
+  string lyrics = 6;
 }
 
-// Song stored in library
 message Song {
-  string id = 1;
+  string song_id = 1;
   SongMetadata metadata = 2;
   google.protobuf.Timestamp created_at = 3;
   google.protobuf.Timestamp updated_at = 4;
-  ProcessingStatus status = 5;
+  ProcessingStatus processing_status = 5;
   string processing_error = 6;
-  float processing_progress = 7;
-  
-  // File references
-  string original_file_path = 8;
-  string vocal_file_path = 9;
-  string instrumental_file_path = 10;
-  string cover_art_path = 11;
-  
-  int64 duration_ms = 12;
+
+  string original_file_path = 7;
+  string vocal_file_path = 8;
+  string instrumental_file_path = 9;
+  string cover_art_path = 10;
+
+  int64 duration_ms = 11;
 }
 
-// Import operations
-message ImportSongsRequest {
-  repeated ImportSongRequest songs = 1;
+enum ProcessingStatus {
+  PROCESSING_STATUS_UNSPECIFIED = 0; // Default value
+  PROCESSING_STATUS_PENDING = 1;     // Just uploaded
+  PROCESSING_STATUS_PROCESSING = 2;  // Audio separation in progress
+  PROCESSING_STATUS_COMPLETED = 3;   // Ready for use
+  PROCESSING_STATUS_FAILED = 4;      // Processing error
 }
+
+enum AudioVersion {
+  AUDIO_VERSION_UNSPECIFIED = 0;  // Default value
+  AUDIO_VERSION_ORIGINAL = 1;     // Original uploaded file
+  AUDIO_VERSION_VOCAL = 2;        // Vocals only
+  AUDIO_VERSION_INSTRUMENTAL = 3; // Instrumental only
+  AUDIO_VERSION_KARAOKE = 4;      // Reduced vocals + boosted instrumental
+}
+
+enum AudioFormat {
+  AUDIO_FORMAT_UNSPECIFIED = 0; // Default value
+  AUDIO_FORMAT_MP3 = 1;         // MP3 format
+  AUDIO_FORMAT_WAV = 2;         // WAV format
+}
+
+// Import
+
+message ImportSongsRequest { repeated ImportSongRequest songs = 1; }
 
 message ImportSongRequest {
-  bytes audio_data = 1;           // Max 50MB per song
-  SongMetadata overrides = 2;      // Optional overrides
-}
+  bytes audio = 1; // max 50MB per song
 
-message ImportSongsResponse {
-  repeated ImportSongResult results = 1;
+  // song metadata overrides (take precedence over music tags in the audio file)
+  optional bytes cover_art_override = 2;
+  optional string title_override = 3;
+  optional string artist_override = 4;
+  optional string album_override = 5;
+  optional string album_artist_override = 6;
+  optional string genre_override = 7;
+  optional string lyrics_override = 8;
 }
 
 message ImportSongResult {
   string song_id = 1;
   ProcessingStatus status = 2;
-  string error_message = 3;       // Empty if successful
+  string error_message = 3; // empty if successful
 }
 
-// Library management
+message ImportSongsResponse { repeated ImportSongResult results = 1; }
+
+// Library Management
+
 message ListSongsRequest {
   int32 page_size = 1;
   string page_token = 2;
-  string filter = 3;              // "artist='John'" or "status=completed"
-  string order_by = 4;             // "created_at desc", "title asc"
+  optional ProcessingStatus status_filter = 3;
 }
 
 message ListSongsResponse {
@@ -87,48 +105,36 @@ message ListSongsResponse {
   int32 total_size = 3;
 }
 
-message GetSongRequest {
+message GetSongRequest { string song_id = 1; }
+
+message GetSongResponse { Song song = 1; }
+
+message DeleteSongRequest { string song_id = 1; }
+
+message DeleteSongResponse {}
+
+message GetCoverArtRequest { string song_id = 1; }
+
+message GetCoverArtResponse {
+  bytes image = 1;
+  string filename = 2;
+}
+
+// Export / Download
+
+message DownloadAudioRequest {
   string song_id = 1;
+  AudioVersion version = 2;
+  AudioFormat output_format = 3;
+  int32 bitrate = 4; // kbps
+
+  // Only used for KARAOKE version
+  optional float vocal_reduction = 5;    // 0.0 to 1.0 (0% to 100% reduction)
+  optional float instrumental_boost = 6; // 0.0 to 1.0 (0% to 100% boost)
 }
 
-message DeleteSongRequest {
-  string song_id = 1;
-}
-
-// Export operations
-message ExportKaraokeRequest {
-  string song_id = 1;
-  ExportConfig config = 2;
-}
-
-message ExportConfig {
-  float vocal_reduction = 1;      // 0.0 to 1.0
-  float instrumental_boost = 2;  // 0.0 to 2.0
-  string output_format = 3;       // "mp3", "wav"
-  int32 bitrate = 4;            // kbps
-  bool include_lyrics = 5;
-}
-
-message ExportKaraokeResponse {
-  string export_id = 1;
-  string download_url = 2;       // Presigned URL or similar
-  ProcessingStatus status = 3;
-}
-
-// Queue management
-message GetQueueStatusRequest {}
-
-message QueueStatus {
-  int32 pending_jobs = 1;
-  int32 active_jobs = 2;
-  int32 completed_jobs = 3;
-  int32 failed_jobs = 4;
-}
-
-// Enums
-enum ProcessingStatus {
-  PROCESSING_STATUS_PENDING = 0;     // Just uploaded
-  PROCESSING_STATUS_PROCESSING = 1;  // Audio separation in progress
-  PROCESSING_STATUS_COMPLETED = 2;   // Ready for use
-  PROCESSING_STATUS_FAILED = 3;      // Processing error
+message DownloadAudioResponse {
+  bytes audio = 1;
+  string filename = 2;
+  AudioFormat format = 3;
 }
