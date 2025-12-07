@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // FileSystemStore implements the Store interface using local filesystem
@@ -41,9 +40,7 @@ func (fs *FileSystemStore) Store(ctx context.Context, songID string, fileType Fi
 		return nil, fmt.Errorf("failed to detect content type: %w", err)
 	}
 
-	safeID := strings.ReplaceAll(songID, "..", "")
-	safeID = filepath.Base(safeID)
-	filePath := filepath.Join(fs.basePath, string(fileType), safeID+ext)
+	filePath := filepath.Join(fs.basePath, string(fileType), songID+ext)
 
 	file, err := os.Create(filePath)
 	if err != nil {
@@ -75,12 +72,10 @@ func (fs *FileSystemStore) Store(ctx context.Context, songID string, fileType Fi
 
 // Get retrieves a blob by song ID and file type
 func (fs *FileSystemStore) Get(ctx context.Context, songID string, fileType FileType) (io.ReadCloser, *BlobInfo, error) {
-	safeID := strings.ReplaceAll(songID, "..", "")
-	safeID = filepath.Base(safeID)
 	dir := filepath.Join(fs.basePath, string(fileType))
 
 	for ext, mimeType := range extToMime {
-		filePath := filepath.Join(dir, safeID+ext)
+		filePath := filepath.Join(dir, songID+ext)
 		if stat, err := os.Stat(filePath); err == nil {
 			file, err := os.Open(filePath)
 			if err != nil {
@@ -104,15 +99,12 @@ func (fs *FileSystemStore) Get(ctx context.Context, songID string, fileType File
 
 // Delete removes all blobs associated with a song ID
 func (fs *FileSystemStore) Delete(ctx context.Context, songID string) error {
-	safeID := strings.ReplaceAll(songID, "..", "")
-	safeID = filepath.Base(safeID)
-
 	var errors []error
 
 	for _, fileType := range []FileType{FileTypeOriginal, FileTypeVocal, FileTypeInstrumental, FileTypeCoverArt} {
 		dir := filepath.Join(fs.basePath, string(fileType))
 
-		pattern := filepath.Join(dir, safeID+"*")
+		pattern := filepath.Join(dir, songID+"*")
 		matches, err := filepath.Glob(pattern)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("failed to glob pattern for %s: %w", fileType, err))
