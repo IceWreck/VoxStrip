@@ -51,8 +51,6 @@ func (s *Service) ImportSongs(ctx context.Context, req *connect.Request[voxstrip
 			UpdatedAt:        time.Now(),
 			ProcessingStatus: store.ProcessingStatusPending,
 			ProcessingError:  "",
-			// File paths will be set during actual processing
-			// For now, we'll store audio data and set status to PENDING
 		}
 
 		// Extract metadata from overrides or use defaults

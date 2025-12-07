@@ -36,27 +36,27 @@ func NewFileSystemStore(basePath string) (*FileSystemStore, error) {
 
 // Store saves a blob with the given song ID and file type
 func (fs *FileSystemStore) Store(ctx context.Context, songID string, fileType FileType, data io.Reader) (*BlobInfo, error) {
-	// Create file path with empty extension for now
-	// TODO: Infer extension from file name
+	mimeType, ext, dataWithBuffer, err := detectContentTypeAndExtension(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect content type: %w", err)
+	}
+
 	safeID := strings.ReplaceAll(songID, "..", "")
 	safeID = filepath.Base(safeID)
-	filePath := filepath.Join(fs.basePath, string(fileType), safeID)
+	filePath := filepath.Join(fs.basePath, string(fileType), safeID+ext)
 
-	// Create the file
 	file, err := os.Create(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file: %w", err)
 	}
 	defer file.Close()
 
-	// Copy data to file and track size
-	size, err := io.Copy(file, data)
+	size, err := io.Copy(file, dataWithBuffer)
 	if err != nil {
-		os.Remove(filePath) // Clean up on error
+		os.Remove(filePath)
 		return nil, fmt.Errorf("failed to write data: %w", err)
 	}
 
-	// Get file info for modification time
 	stat, err := file.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file info: %w", err)
@@ -65,63 +65,66 @@ func (fs *FileSystemStore) Store(ctx context.Context, songID string, fileType Fi
 	blobInfo := &BlobInfo{
 		Key:          songID,
 		Size:         size,
-		ContentType:  "", // TODO: infer from file name
+		ContentType:  mimeType,
 		LastModified: stat.ModTime(),
 	}
 
-	slog.Debug("blob stored", "song_id", songID, "type", fileType, "size", size, "path", filePath)
+	slog.Debug("blob stored", "song_id", songID, "type", fileType, "size", size, "path", filePath, "mime_type", mimeType)
 	return blobInfo, nil
 }
 
 // Get retrieves a blob by song ID and file type
 func (fs *FileSystemStore) Get(ctx context.Context, songID string, fileType FileType) (io.ReadCloser, *BlobInfo, error) {
-	// Try file without extension first (current storage approach)
 	safeID := strings.ReplaceAll(songID, "..", "")
 	safeID = filepath.Base(safeID)
-	filePath := filepath.Join(fs.basePath, string(fileType), safeID)
+	dir := filepath.Join(fs.basePath, string(fileType))
 
-	stat, err := os.Stat(filePath)
-	if err != nil {
-		// TODO: Try different extensions when we implement extension inference
-		return nil, nil, ErrNotFound
+	for ext, mimeType := range extToMime {
+		filePath := filepath.Join(dir, safeID+ext)
+		if stat, err := os.Stat(filePath); err == nil {
+			file, err := os.Open(filePath)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to open file: %w", err)
+			}
+
+			blobInfo := &BlobInfo{
+				Key:          songID,
+				Size:         stat.Size(),
+				ContentType:  mimeType,
+				LastModified: stat.ModTime(),
+			}
+
+			slog.Debug("blob retrieved", "song_id", songID, "type", fileType, "size", blobInfo.Size, "mime_type", mimeType)
+			return file, blobInfo, nil
+		}
 	}
 
-	// Open file
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open file: %w", err)
-	}
-
-	// TODO: Infer content type from file name when implemented
-	blobInfo := &BlobInfo{
-		Key:          songID,
-		Size:         stat.Size(),
-		ContentType:  "", // TODO: infer from file name
-		LastModified: stat.ModTime(),
-	}
-
-	slog.Debug("blob retrieved", "song_id", songID, "type", fileType, "size", blobInfo.Size)
-	return file, blobInfo, nil
+	return nil, nil, ErrNotFound
 }
 
 // Delete removes all blobs associated with a song ID
 func (fs *FileSystemStore) Delete(ctx context.Context, songID string) error {
-	// Sanitize songID to prevent directory traversal
 	safeID := strings.ReplaceAll(songID, "..", "")
 	safeID = filepath.Base(safeID)
 
 	var errors []error
 
-	// Delete all files in all file type directories
 	for _, fileType := range []FileType{FileTypeOriginal, FileTypeVocal, FileTypeInstrumental, FileTypeCoverArt} {
 		dir := filepath.Join(fs.basePath, string(fileType))
 
-		// Try to remove file without extension
-		filePath := filepath.Join(dir, safeID)
-		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
-			errors = append(errors, fmt.Errorf("failed to delete %s file: %w", fileType, err))
-		} else if err == nil {
-			slog.Debug("blob deleted", "song_id", songID, "type", fileType, "path", filePath)
+		pattern := filepath.Join(dir, safeID+"*")
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("failed to glob pattern for %s: %w", fileType, err))
+			continue
+		}
+
+		for _, match := range matches {
+			if err := os.Remove(match); err != nil && !os.IsNotExist(err) {
+				errors = append(errors, fmt.Errorf("failed to delete %s file %s: %w", fileType, match, err))
+			} else if err == nil {
+				slog.Debug("blob deleted", "song_id", songID, "type", fileType, "path", match)
+			}
 		}
 	}
 
