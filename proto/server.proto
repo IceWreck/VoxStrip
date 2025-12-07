@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package voxstrip.v1;
 
-option go_package = "github.com/IceWreck/VoxStrip/gen/voxstrip/v1;voxstripv1";
+option go_package = "github.com/IceWreck/VoxStrip/gen/proto;voxstripv1";
 
 import "google/protobuf/timestamp.proto";
 
