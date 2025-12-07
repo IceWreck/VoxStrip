@@ -18,7 +18,7 @@ VoxStrip is an AI-based karaoke system built in Go that processes audio files to
 - Avoid redundant comments – Don't comment obvious things.
 - Use comments for complex logic – Explain non-trivial decisions or workarounds.
 
-## Formattingm, Linting & Building
+## Formatting, Linting & Building
 
 After significant code changes, format, lint and vet with:
 

@@ -1,7 +1,52 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+
+	"github.com/IceWreck/VoxStrip/pkg/api"
+	"github.com/IceWreck/VoxStrip/pkg/config"
+	"github.com/IceWreck/VoxStrip/pkg/logger"
+	"github.com/IceWreck/VoxStrip/pkg/store/sqlite"
+)
 
 func main() {
-	fmt.Println("hello")
+	// Setup logging
+	logger.SetupLogging()
+
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
+	}
+
+	// Initialize store
+	store, err := sqlite.NewStore(cfg.Database.Path)
+	if err != nil {
+		slog.Error("failed to initialize store", "error", err)
+		os.Exit(1)
+	}
+	defer store.Close()
+
+	// Initialize service
+	service := api.NewService(store, cfg)
+
+	// Setup server
+	handler, err := api.NewServer(service)
+	if err != nil {
+		slog.Error("failed to create server", "error", err)
+		os.Exit(1)
+	}
+
+	// Start server
+	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
+	slog.Info("starting server", "address", addr)
+
+	if err := http.ListenAndServe(addr, handler); err != nil {
+		slog.Error("server failed", "error", err)
+		os.Exit(1)
+	}
 }
