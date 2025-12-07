@@ -15,9 +15,7 @@ type Config struct {
 	}
 
 	Storage struct {
-		UploadsDir string `env:"UPLOADS_DIR" envDefault:"./data/uploads"`
-		LibraryDir string `env:"LIBRARY_DIR" envDefault:"./data/processed"`
-		ExportsDir string `env:"EXPORTS_DIR" envDefault:"./data/exports"`
+		BlobStoreDir string `env:"BLOBSTORE_DIR" envDefault:"./data/blobs"`
 	}
 }
 

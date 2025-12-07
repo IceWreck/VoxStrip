@@ -28,17 +28,13 @@ type Metadata struct {
 
 // Song represents a song in the library
 type Song struct {
-	ID                   string
-	Metadata             Metadata
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	ProcessingStatus     ProcessingStatus
-	ProcessingError      string
-	OriginalFilePath     string
-	VocalFilePath        string
-	InstrumentalFilePath string
-	CoverArtPath         string
-	DurationMs           int64
+	ID               string
+	Metadata         Metadata
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	ProcessingStatus ProcessingStatus
+	ProcessingError  string
+	DurationMs       int64
 }
 
 // ListOptions contains options for listing songs

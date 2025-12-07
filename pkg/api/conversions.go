@@ -16,17 +16,13 @@ func songToProto(song *store.Song) *voxstripv1.Song {
 	}
 
 	return &voxstripv1.Song{
-		SongId:               song.ID,
-		Metadata:             metadataToProto(song.Metadata),
-		CreatedAt:            timestamppb.New(song.CreatedAt),
-		UpdatedAt:            timestamppb.New(song.UpdatedAt),
-		ProcessingStatus:     processingStatusToProto(song.ProcessingStatus),
-		ProcessingError:      song.ProcessingError,
-		OriginalFilePath:     song.OriginalFilePath,
-		VocalFilePath:        song.VocalFilePath,
-		InstrumentalFilePath: song.InstrumentalFilePath,
-		CoverArtPath:         song.CoverArtPath,
-		DurationMs:           song.DurationMs,
+		SongId:           song.ID,
+		Metadata:         metadataToProto(song.Metadata),
+		CreatedAt:        timestamppb.New(song.CreatedAt),
+		UpdatedAt:        timestamppb.New(song.UpdatedAt),
+		ProcessingStatus: processingStatusToProto(song.ProcessingStatus),
+		ProcessingError:  song.ProcessingError,
+		DurationMs:       song.DurationMs,
 	}
 }
 
@@ -52,17 +48,13 @@ func protoToSong(protoSong *voxstripv1.Song) (*store.Song, error) {
 	}
 
 	return &store.Song{
-		ID:                   protoSong.SongId,
-		Metadata:             *metadata,
-		CreatedAt:            createdAt,
-		UpdatedAt:            updatedAt,
-		ProcessingStatus:     processingStatusFromProto(protoSong.ProcessingStatus),
-		ProcessingError:      protoSong.ProcessingError,
-		OriginalFilePath:     protoSong.OriginalFilePath,
-		VocalFilePath:        protoSong.VocalFilePath,
-		InstrumentalFilePath: protoSong.InstrumentalFilePath,
-		CoverArtPath:         protoSong.CoverArtPath,
-		DurationMs:           protoSong.DurationMs,
+		ID:               protoSong.SongId,
+		Metadata:         *metadata,
+		CreatedAt:        createdAt,
+		UpdatedAt:        updatedAt,
+		ProcessingStatus: processingStatusFromProto(protoSong.ProcessingStatus),
+		ProcessingError:  protoSong.ProcessingError,
+		DurationMs:       protoSong.DurationMs,
 	}, nil
 }
 

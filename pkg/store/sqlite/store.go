@@ -56,9 +56,8 @@ func (s *sqliteStore) CreateSong(ctx context.Context, song *store.Song) error {
 		INSERT INTO songs (
 			id, title, artist, album, album_artist, genre, lyrics,
 			created_at, updated_at, processing_status, processing_error,
-			original_file_path, vocal_file_path, instrumental_file_path,
-			cover_art_path, duration_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			duration_ms
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := s.db.ExecContext(ctx, query,
@@ -73,10 +72,6 @@ func (s *sqliteStore) CreateSong(ctx context.Context, song *store.Song) error {
 		song.UpdatedAt,
 		int(song.ProcessingStatus),
 		song.ProcessingError,
-		song.OriginalFilePath,
-		song.VocalFilePath,
-		song.InstrumentalFilePath,
-		song.CoverArtPath,
 		song.DurationMs,
 	)
 
@@ -94,8 +89,7 @@ func (s *sqliteStore) GetSong(ctx context.Context, id string) (*store.Song, erro
 	query := `
 		SELECT id, title, artist, album, album_artist, genre, lyrics,
 			   created_at, updated_at, processing_status, processing_error,
-			   original_file_path, vocal_file_path, instrumental_file_path,
-			   cover_art_path, duration_ms
+			   duration_ms
 		FROM songs
 		WHERE id = ?
 	`
@@ -116,10 +110,6 @@ func (s *sqliteStore) GetSong(ctx context.Context, id string) (*store.Song, erro
 		&song.UpdatedAt,
 		&processingStatus,
 		&song.ProcessingError,
-		&song.OriginalFilePath,
-		&song.VocalFilePath,
-		&song.InstrumentalFilePath,
-		&song.CoverArtPath,
 		&song.DurationMs,
 	)
 
@@ -174,8 +164,7 @@ func (s *sqliteStore) ListSongs(ctx context.Context, opts store.ListOptions) ([]
 	query := fmt.Sprintf(`
 		SELECT id, title, artist, album, album_artist, genre, lyrics,
 			   created_at, updated_at, processing_status, processing_error,
-			   original_file_path, vocal_file_path, instrumental_file_path,
-			   cover_art_path, duration_ms
+			   duration_ms
 		FROM songs
 		%s %s %s
 	`, whereClause, orderClause, limitClause)
@@ -206,10 +195,6 @@ func (s *sqliteStore) ListSongs(ctx context.Context, opts store.ListOptions) ([]
 			&song.UpdatedAt,
 			&processingStatus,
 			&song.ProcessingError,
-			&song.OriginalFilePath,
-			&song.VocalFilePath,
-			&song.InstrumentalFilePath,
-			&song.CoverArtPath,
 			&song.DurationMs,
 		)
 
@@ -244,8 +229,7 @@ func (s *sqliteStore) UpdateSong(ctx context.Context, song *store.Song) error {
 		UPDATE songs SET
 			title = ?, artist = ?, album = ?, album_artist = ?, genre = ?, lyrics = ?,
 			updated_at = ?, processing_status = ?, processing_error = ?,
-			original_file_path = ?, vocal_file_path = ?, instrumental_file_path = ?,
-			cover_art_path = ?, duration_ms = ?
+			duration_ms = ?
 		WHERE id = ?
 	`
 
@@ -259,10 +243,6 @@ func (s *sqliteStore) UpdateSong(ctx context.Context, song *store.Song) error {
 		song.UpdatedAt,
 		int(song.ProcessingStatus),
 		song.ProcessingError,
-		song.OriginalFilePath,
-		song.VocalFilePath,
-		song.InstrumentalFilePath,
-		song.CoverArtPath,
 		song.DurationMs,
 		song.ID,
 	)

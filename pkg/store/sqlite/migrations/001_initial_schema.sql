@@ -10,10 +10,6 @@ CREATE TABLE songs (
     updated_at DATETIME NOT NULL,
     processing_status INTEGER NOT NULL DEFAULT 1,
     processing_error TEXT,
-    original_file_path TEXT,
-    vocal_file_path TEXT,
-    instrumental_file_path TEXT,
-    cover_art_path TEXT,
     duration_ms INTEGER
 );
 

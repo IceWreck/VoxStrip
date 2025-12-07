@@ -36,12 +36,7 @@ message Song {
   ProcessingStatus processing_status = 5;
   string processing_error = 6;
 
-  string original_file_path = 7;
-  string vocal_file_path = 8;
-  string instrumental_file_path = 9;
-  string cover_art_path = 10;
-
-  int64 duration_ms = 11;
+  int64 duration_ms = 7;
 }
 
 enum ProcessingStatus {

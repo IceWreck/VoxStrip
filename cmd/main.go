@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/IceWreck/VoxStrip/pkg/api"
+	"github.com/IceWreck/VoxStrip/pkg/blobstore"
 	"github.com/IceWreck/VoxStrip/pkg/config"
 	"github.com/IceWreck/VoxStrip/pkg/logger"
 	"github.com/IceWreck/VoxStrip/pkg/store/sqlite"
@@ -31,8 +32,15 @@ func main() {
 	}
 	defer store.Close()
 
+	// Initialize blobstore
+	blobstore, err := blobstore.NewFileSystemStore(cfg.Storage.BlobStoreDir)
+	if err != nil {
+		slog.Error("failed to initialize blobstore", "error", err)
+		os.Exit(1)
+	}
+
 	// Initialize service
-	service := api.NewService(store, cfg)
+	service := api.NewService(store, cfg, blobstore)
 
 	// Setup server
 	handler, err := api.NewServer(service)
