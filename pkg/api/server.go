@@ -1,16 +1,23 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"connectrpc.com/connect"
+	connectcors "connectrpc.com/cors"
 	voxstripv1connect "github.com/IceWreck/VoxStrip/gen/proto/voxstripv1connect"
+	"github.com/rs/cors"
 )
 
 // NewServer creates a new HTTP server with Connect RPC handlers
 func NewServer(service *Service, opts ...connect.HandlerOption) (http.Handler, error) {
 	mux := http.NewServeMux()
+
+	// Add logging interceptor
+	opts = append(opts, connect.WithInterceptors(loggingInterceptor()))
 
 	// Create Connect RPC handler for KaraokeService
 	path, handler := voxstripv1connect.NewKaraokeServiceHandler(service, opts...)
@@ -22,15 +29,46 @@ func NewServer(service *Service, opts ...connect.HandlerOption) (http.Handler, e
 		w.Write([]byte("OK"))
 	})
 
-	// Add middleware for logging and recovery
-	handlerWithMiddleware := addMiddleware(mux)
+	// Add HTTP middleware for CORS and recovery
+	handlerWithMiddleware := addHTTPMiddleware(mux)
 
 	slog.Info("server created with Connect RPC handlers", "path", path)
 	return handlerWithMiddleware, nil
 }
 
-// addMiddleware adds common middleware to the handler
-func addMiddleware(handler http.Handler) http.Handler {
+// loggingInterceptor is a Connect RPC interceptor for request logging
+func loggingInterceptor() connect.UnaryInterceptorFunc {
+	return func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			start := time.Now()
+			slog.Info("rpc call started",
+				"procedure", req.Spec().Procedure,
+				"stream_type", req.Spec().StreamType,
+			)
+
+			resp, err := next(ctx, req)
+
+			duration := time.Since(start)
+			if err != nil {
+				slog.Error("rpc call failed",
+					"procedure", req.Spec().Procedure,
+					"duration", duration,
+					"error", err,
+				)
+			} else {
+				slog.Info("rpc call completed",
+					"procedure", req.Spec().Procedure,
+					"duration", duration,
+				)
+			}
+
+			return resp, err
+		}
+	}
+}
+
+// addHTTPMiddleware adds HTTP-level middleware (CORS and recovery)
+func addHTTPMiddleware(handler http.Handler) http.Handler {
 	// Recovery middleware
 	recovery := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -44,34 +82,18 @@ func addMiddleware(handler http.Handler) http.Handler {
 		})
 	}
 
-	// Logging middleware
-	logging := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			slog.Info("request received", "method", r.Method, "path", r.URL.Path, "remote", r.RemoteAddr)
-			next.ServeHTTP(w, r)
-		})
-	}
+	// CORS middleware using Connect's recommended approach
+	corsMiddleware := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"}, // TODO: Configure proper origins for production
+		AllowedMethods:   connectcors.AllowedMethods(),
+		AllowedHeaders:   connectcors.AllowedHeaders(),
+		ExposedHeaders:   connectcors.ExposedHeaders(),
+		AllowCredentials: false,
+	})
 
-	// CORS middleware (for development)
-	cors := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Connect-Protocol-Version")
-
-			if r.Method == "OPTIONS" {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		})
-	}
-
-	// Apply middleware in order
+	// Apply middleware in correct order (outermost to innermost)
+	handler = corsMiddleware.Handler(handler)
 	handler = recovery(handler)
-	handler = logging(handler)
-	handler = cors(handler)
 
 	return handler
 }

@@ -4,8 +4,10 @@ go 1.24.1
 
 require (
 	connectrpc.com/connect v1.19.1
+	connectrpc.com/cors v0.1.0
 	github.com/caarlos0/env/v11 v11.3.1
 	github.com/google/uuid v1.6.0
+	github.com/rs/cors v1.11.1
 	google.golang.org/protobuf v1.36.10
 	modernc.org/sqlite v1.40.1
 )

@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/IceWreck/VoxStrip/pkg/api"
 	"github.com/IceWreck/VoxStrip/pkg/blobstore"
@@ -53,8 +57,39 @@ func main() {
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
 	slog.Info("starting server", "address", addr)
 
-	if err := http.ListenAndServe(addr, handler); err != nil {
-		slog.Error("server failed", "error", err)
+	// Configure server with HTTP/2 support
+	p := new(http.Protocols)
+	p.SetHTTP1(true)
+	p.SetUnencryptedHTTP2(true)
+
+	server := &http.Server{
+		Addr:      addr,
+		Handler:   handler,
+		Protocols: p,
+	}
+
+	// Graceful shutdown
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("server failed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	slog.Info("shutting down server...")
+
+	// Graceful shutdown with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		slog.Error("server forced to shutdown", "error", err)
 		os.Exit(1)
 	}
+
+	slog.Info("server shutdown complete")
 }
