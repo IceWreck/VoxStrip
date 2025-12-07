@@ -10,10 +10,14 @@ type Config struct {
 		Host string `env:"HOST" envDefault:"0.0.0.0"`
 	}
 
+	Database struct {
+		Path string `env:"DB_PATH" envDefault:"./data/voxstrip.db"`
+	}
+
 	Storage struct {
-		UploadsDir string `env:"UPLOADS_DIR" envDefault:"./uploads"`
-		LibraryDir string `env:"LIBRARY_DIR" envDefault:"./processed"`
-		ExportsDir string `env:"EXPORTS_DIR" envDefault:"./exports"`
+		UploadsDir string `env:"UPLOADS_DIR" envDefault:"./data/uploads"`
+		LibraryDir string `env:"LIBRARY_DIR" envDefault:"./data/processed"`
+		ExportsDir string `env:"EXPORTS_DIR" envDefault:"./data/exports"`
 	}
 }
 
