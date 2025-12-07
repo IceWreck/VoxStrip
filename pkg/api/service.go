@@ -73,16 +73,24 @@ func (s *Service) ImportSongs(ctx context.Context, req *connect.Request[voxstrip
 			song.Metadata.Lyrics = *importReq.LyricsOverride
 		}
 
-		// Store audio data in blobstore
+		// Store audio data in blobstore - this must succeed before creating database entry
 		if len(importReq.Audio) > 0 {
 			if _, err := s.blobstore.Store(ctx, result.SongId, blobstore.FileTypeOriginal, bytes.NewReader(importReq.Audio)); err != nil {
 				slog.Error("failed to store audio data", "id", result.SongId, "error", err)
 				result.Status = voxstripv1.ProcessingStatus_PROCESSING_STATUS_FAILED
 				result.ErrorMessage = fmt.Sprintf("failed to store audio data: %v", err)
+				results[i] = result
+				continue // Skip database entry if file storage fails
 			}
+		} else {
+			slog.Error("no audio data provided", "id", result.SongId)
+			result.Status = voxstripv1.ProcessingStatus_PROCESSING_STATUS_FAILED
+			result.ErrorMessage = "no audio data provided"
+			results[i] = result
+			continue // Skip database entry if no audio data
 		}
 
-		// Store cover art override if provided
+		// Store cover art override if provided (non-critical)
 		if importReq.CoverArtOverride != nil {
 			if _, err := s.blobstore.Store(ctx, result.SongId, blobstore.FileTypeCoverArt, bytes.NewReader(importReq.CoverArtOverride)); err != nil {
 				slog.Error("failed to store cover art", "id", result.SongId, "error", err)
@@ -91,6 +99,8 @@ func (s *Service) ImportSongs(ctx context.Context, req *connect.Request[voxstrip
 				slog.Debug("cover art override stored", "id", result.SongId, "size", len(importReq.CoverArtOverride))
 			}
 		}
+
+		// Only create database entry after successful file storage
 		if err := s.store.CreateSong(ctx, song); err != nil {
 			slog.Error("failed to create song", "id", result.SongId, "error", err)
 			result.Status = voxstripv1.ProcessingStatus_PROCESSING_STATUS_FAILED
