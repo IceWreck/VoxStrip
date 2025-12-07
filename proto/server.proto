@@ -1,0 +1,134 @@
+syntax = "proto3";
+
+package voxstrip.v1;
+
+option go_package = "github.com/IceWreck/VoxStrip/gen/voxstrip/v1;voxstripv1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+service KaraokeService {
+  // Import operations
+  rpc ImportSongs(ImportSongsRequest) returns (ImportSongsResponse);
+  
+  // Library management
+  rpc ListSongs(ListSongsRequest) returns (ListSongsResponse);
+  rpc GetSong(GetSongRequest) returns (Song);
+  rpc DeleteSong(DeleteSongRequest) returns (google.protobuf.Empty);
+  
+  // Export operations
+  rpc ExportKaraoke(ExportKaraokeRequest) returns (ExportKaraokeResponse);
+  
+  // Queue management
+  rpc GetQueueStatus(GetQueueStatusRequest) returns (QueueStatus);
+}
+
+// Core metadata structure
+message SongMetadata {
+  string title = 1;
+  string artist = 2;
+  string album = 3;
+  string album_artist = 4;
+  string genre = 5;
+  bytes cover_art = 6;    // Image data
+  string lyrics = 7;      // LRC format text (stored in DB)
+}
+
+// Song stored in library
+message Song {
+  string id = 1;
+  SongMetadata metadata = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
+  ProcessingStatus status = 5;
+  string processing_error = 6;
+  float processing_progress = 7;
+  
+  // File references
+  string original_file_path = 8;
+  string vocal_file_path = 9;
+  string instrumental_file_path = 10;
+  string cover_art_path = 11;
+  
+  int64 duration_ms = 12;
+}
+
+// Import operations
+message ImportSongsRequest {
+  repeated ImportSongRequest songs = 1;
+}
+
+message ImportSongRequest {
+  bytes audio_data = 1;           // Max 50MB per song
+  SongMetadata overrides = 2;      // Optional overrides
+}
+
+message ImportSongsResponse {
+  repeated ImportSongResult results = 1;
+}
+
+message ImportSongResult {
+  string song_id = 1;
+  ProcessingStatus status = 2;
+  string error_message = 3;       // Empty if successful
+}
+
+// Library management
+message ListSongsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  string filter = 3;              // "artist='John'" or "status=completed"
+  string order_by = 4;             // "created_at desc", "title asc"
+}
+
+message ListSongsResponse {
+  repeated Song songs = 1;
+  string next_page_token = 2;
+  int32 total_size = 3;
+}
+
+message GetSongRequest {
+  string song_id = 1;
+}
+
+message DeleteSongRequest {
+  string song_id = 1;
+}
+
+// Export operations
+message ExportKaraokeRequest {
+  string song_id = 1;
+  ExportConfig config = 2;
+}
+
+message ExportConfig {
+  float vocal_reduction = 1;      // 0.0 to 1.0
+  float instrumental_boost = 2;  // 0.0 to 2.0
+  string output_format = 3;       // "mp3", "wav"
+  int32 bitrate = 4;            // kbps
+  bool include_lyrics = 5;
+}
+
+message ExportKaraokeResponse {
+  string export_id = 1;
+  string download_url = 2;       // Presigned URL or similar
+  ProcessingStatus status = 3;
+}
+
+// Queue management
+message GetQueueStatusRequest {}
+
+message QueueStatus {
+  int32 pending_jobs = 1;
+  int32 active_jobs = 2;
+  int32 completed_jobs = 3;
+  int32 failed_jobs = 4;
+}
+
+// Enums
+enum ProcessingStatus {
+  PROCESSING_STATUS_PENDING = 0;     // Just uploaded
+  PROCESSING_STATUS_PROCESSING = 1;  // Audio separation in progress
+  PROCESSING_STATUS_COMPLETED = 2;   // Ready for use
+  PROCESSING_STATUS_FAILED = 3;      // Processing error
+}
