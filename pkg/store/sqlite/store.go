@@ -163,6 +163,11 @@ func (s *sqliteStore) ListSongs(ctx context.Context, opts store.ListOptions) ([]
 
 	// Add cursor-based pagination if page token is provided
 	if opts.PageToken != "" {
+		// Validate page token format
+		if _, err := time.Parse(time.RFC3339Nano, opts.PageToken); err != nil {
+			return nil, "", 0, fmt.Errorf("invalid page token format: must be RFC3339Nano timestamp")
+		}
+
 		whereClause += fmt.Sprintf(" AND created_at < $%d", argIndex)
 		args = append(args, opts.PageToken)
 		argIndex++
