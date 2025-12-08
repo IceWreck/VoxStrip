@@ -32,13 +32,84 @@ func NewService(store store.Store, config *config.Config, blobstore blobstore.St
 	}
 }
 
+// validateImportSongRequest validates a single import song request
+func (s *Service) validateImportSongRequest(req *voxstripv1.ImportSongRequest) error {
+	// Validate audio file size
+	if len(req.Audio) == 0 {
+		return fmt.Errorf("audio data is required")
+	}
+	if len(req.Audio) > config.MaxAudioFileSize {
+		return fmt.Errorf("audio file size exceeds maximum allowed size of %d bytes", config.MaxAudioFileSize)
+	}
+
+	// Validate cover art size if provided
+	if req.CoverArtOverride != nil {
+		if len(req.CoverArtOverride) > config.MaxCoverArtSize {
+			return fmt.Errorf("cover art size exceeds maximum allowed size of %d bytes", config.MaxCoverArtSize)
+		}
+	}
+
+	// Validate metadata field lengths
+	if req.TitleOverride != nil && len(*req.TitleOverride) > config.MaxMetadataLength {
+		return fmt.Errorf("title exceeds maximum length of %d characters", config.MaxMetadataLength)
+	}
+	if req.ArtistOverride != nil && len(*req.ArtistOverride) > config.MaxMetadataLength {
+		return fmt.Errorf("artist exceeds maximum length of %d characters", config.MaxMetadataLength)
+	}
+	if req.AlbumOverride != nil && len(*req.AlbumOverride) > config.MaxMetadataLength {
+		return fmt.Errorf("album exceeds maximum length of %d characters", config.MaxMetadataLength)
+	}
+	if req.AlbumArtistOverride != nil && len(*req.AlbumArtistOverride) > config.MaxMetadataLength {
+		return fmt.Errorf("album artist exceeds maximum length of %d characters", config.MaxMetadataLength)
+	}
+	if req.GenreOverride != nil && len(*req.GenreOverride) > config.MaxMetadataLength {
+		return fmt.Errorf("genre exceeds maximum length of %d characters", config.MaxMetadataLength)
+	}
+	if req.LyricsOverride != nil && len(*req.LyricsOverride) > config.MaxLyricsLength {
+		return fmt.Errorf("lyrics exceed maximum length of %d characters", config.MaxLyricsLength)
+	}
+
+	return nil
+}
+
+// validateSongID validates that a song ID is a proper UUID format
+func (s *Service) validateSongID(songID string) error {
+	if songID == "" {
+		return fmt.Errorf("song ID cannot be empty")
+	}
+
+	// Validate UUID format
+	if _, err := uuid.Parse(songID); err != nil {
+		return fmt.Errorf("invalid song ID format: must be a valid UUID")
+	}
+
+	return nil
+}
+
 // ImportSongs handles batch import of songs
 func (s *Service) ImportSongs(ctx context.Context, req *connect.Request[voxstripv1.ImportSongsRequest]) (*connect.Response[voxstripv1.ImportSongsResponse], error) {
 	slog.Info("importing songs", "count", len(req.Msg.Songs))
 
+	// Validate request batch size
+	if len(req.Msg.Songs) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("at least one song must be provided"))
+	}
+	if len(req.Msg.Songs) > 100 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("maximum 100 songs can be imported in a single request"))
+	}
+
 	results := make([]*voxstripv1.ImportSongResult, len(req.Msg.Songs))
 
 	for i, importReq := range req.Msg.Songs {
+		// Validate the import request
+		if err := s.validateImportSongRequest(importReq); err != nil {
+			slog.Error("validation failed", "index", i, "error", err)
+			results[i] = &voxstripv1.ImportSongResult{
+				Status:       voxstripv1.ProcessingStatus_PROCESSING_STATUS_FAILED,
+				ErrorMessage: fmt.Sprintf("validation failed: %v", err),
+			}
+			continue
+		}
 		result := &voxstripv1.ImportSongResult{
 			SongId: uuid.New().String(),
 			Status: voxstripv1.ProcessingStatus_PROCESSING_STATUS_PENDING,
@@ -148,6 +219,11 @@ func (s *Service) ListSongs(ctx context.Context, req *connect.Request[voxstripv1
 func (s *Service) GetSong(ctx context.Context, req *connect.Request[voxstripv1.GetSongRequest]) (*connect.Response[voxstripv1.GetSongResponse], error) {
 	slog.Debug("getting song", "id", req.Msg.SongId)
 
+	// Validate song ID format
+	if err := s.validateSongID(req.Msg.SongId); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
 	song, err := s.store.GetSong(ctx, req.Msg.SongId)
 	if err != nil {
 		slog.Error("failed to get song", "id", req.Msg.SongId, "error", err)
@@ -163,6 +239,11 @@ func (s *Service) GetSong(ctx context.Context, req *connect.Request[voxstripv1.G
 // GetCoverArt retrieves cover art for a song
 func (s *Service) GetCoverArt(ctx context.Context, req *connect.Request[voxstripv1.GetCoverArtRequest]) (*connect.Response[voxstripv1.GetCoverArtResponse], error) {
 	slog.Debug("getting cover art", "id", req.Msg.SongId)
+
+	// Validate song ID format
+	if err := s.validateSongID(req.Msg.SongId); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 
 	// Verify song exists
 	_, err := s.store.GetSong(ctx, req.Msg.SongId)
@@ -215,6 +296,11 @@ func (s *Service) GetCoverArt(ctx context.Context, req *connect.Request[voxstrip
 func (s *Service) DeleteSong(ctx context.Context, req *connect.Request[voxstripv1.DeleteSongRequest]) (*connect.Response[voxstripv1.DeleteSongResponse], error) {
 	slog.Info("deleting song", "id", req.Msg.SongId)
 
+	// Validate song ID format
+	if err := s.validateSongID(req.Msg.SongId); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
 	if err := s.store.DeleteSong(ctx, req.Msg.SongId); err != nil {
 		slog.Error("failed to delete song", "id", req.Msg.SongId, "error", err)
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("song not found: %w", err))
@@ -233,6 +319,11 @@ func (s *Service) DeleteSong(ctx context.Context, req *connect.Request[voxstripv
 // DownloadAudio handles audio download requests
 func (s *Service) DownloadAudio(ctx context.Context, req *connect.Request[voxstripv1.DownloadAudioRequest]) (*connect.Response[voxstripv1.DownloadAudioResponse], error) {
 	slog.Debug("downloading audio", "id", req.Msg.SongId, "version", req.Msg.Version, "format", req.Msg.OutputFormat)
+
+	// Validate song ID format
+	if err := s.validateSongID(req.Msg.SongId); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 
 	song, err := s.store.GetSong(ctx, req.Msg.SongId)
 	if err != nil {
