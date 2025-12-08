@@ -31,7 +31,7 @@ func NewStore(dbPath string) (store.Store, error) {
 	}
 
 	// Run migrations
-	if err := Migrate(db); err != nil {
+	if err := migrate(db); err != nil {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 

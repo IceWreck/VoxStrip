@@ -13,14 +13,14 @@ import (
 //go:embed migrations/*.sql
 var migrationFS embed.FS
 
-// Migrate runs the database migrations
-func Migrate(db *sql.DB) error {
+// migrate runs the database migrations
+func migrate(db *sql.DB) error {
 	slog.Info("running database migrations")
 
 	// Create schema_migrations table if it doesn't exist
 	if _, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS schema_migrations (
-			version INTEGER PRIMARY KEY,
+			filename TEXT PRIMARY KEY,
 			applied_at DATETIME NOT NULL
 		)
 	`); err != nil {
@@ -50,19 +50,13 @@ func Migrate(db *sql.DB) error {
 
 	// Run pending migrations
 	for _, migration := range migrations {
-		version := extractVersion(migration)
-		if version == 0 {
-			slog.Warn("skipping migration with invalid version", "file", migration)
+		if applied[migration] {
+			slog.Debug("migration already applied", "file", migration)
 			continue
 		}
 
-		if applied[version] {
-			slog.Debug("migration already applied", "version", version, "file", migration)
-			continue
-		}
-
-		slog.Info("applying migration", "version", version, "file", migration)
-		if err := applyMigration(db, migration, version); err != nil {
+		slog.Info("applying migration", "file", migration)
+		if err := applyMigration(db, migration); err != nil {
 			return fmt.Errorf("failed to apply migration %s: %w", migration, err)
 		}
 	}
@@ -71,49 +65,26 @@ func Migrate(db *sql.DB) error {
 	return nil
 }
 
-func getAppliedMigrations(db *sql.DB) (map[int]bool, error) {
-	rows, err := db.Query("SELECT version FROM schema_migrations")
+func getAppliedMigrations(db *sql.DB) (map[string]bool, error) {
+	rows, err := db.Query("SELECT filename FROM schema_migrations")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	applied := make(map[int]bool)
+	applied := make(map[string]bool)
 	for rows.Next() {
-		var version int
-		if err := rows.Scan(&version); err != nil {
+		var filename string
+		if err := rows.Scan(&filename); err != nil {
 			return nil, err
 		}
-		applied[version] = true
+		applied[filename] = true
 	}
 
 	return applied, rows.Err()
 }
 
-func extractVersion(filename string) int {
-	// Extract version from filename like "001_initial_schema.sql"
-	parts := strings.Split(filename, "_")
-	if len(parts) == 0 {
-		return 0
-	}
-
-	var versionStr string
-	for _, part := range parts {
-		if len(part) >= 3 && part[0] >= '0' && part[0] <= '9' {
-			versionStr = part
-			break
-		}
-	}
-
-	var version int
-	if _, err := fmt.Sscanf(versionStr, "%d", &version); err != nil {
-		return 0
-	}
-
-	return version
-}
-
-func applyMigration(db *sql.DB, filename string, version int) error {
+func applyMigration(db *sql.DB, filename string) error {
 	// Read migration file
 	path := fmt.Sprintf("migrations/%s", filename)
 	content, err := fs.ReadFile(migrationFS, path)
@@ -126,18 +97,19 @@ func applyMigration(db *sql.DB, filename string, version int) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
 
 	// Execute migration
 	if _, err := tx.Exec(string(content)); err != nil {
+		tx.Rollback()
 		return fmt.Errorf("failed to execute migration %s: %w", filename, err)
 	}
 
 	// Mark migration as applied
 	if _, err := tx.Exec(
-		"INSERT INTO schema_migrations (version, applied_at) VALUES (?, CURRENT_TIMESTAMP)",
-		version,
+		"INSERT INTO schema_migrations (filename, applied_at) VALUES (?, CURRENT_TIMESTAMP)",
+		filename,
 	); err != nil {
+		tx.Rollback()
 		return fmt.Errorf("failed to record migration %s: %w", filename, err)
 	}
 
