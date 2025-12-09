@@ -3,6 +3,8 @@
 ## Overview
 VoxStrip is an AI-based karaoke system built in Go that processes audio files to separate vocals and instruments, manages a song library with synchronized lyrics, and provides flexible audio download capabilities for karaoke applications.
 
+**Current Status**: The API infrastructure, storage layer, and file management are fully implemented. The core audio processing pipeline (vocal separation, background processing, metadata extraction) is not yet implemented.
+
 ## Core Components
 
 ### 1. API Layer (Connect RPC + Protobuf)
@@ -11,26 +13,26 @@ VoxStrip is an AI-based karaoke system built in Go that processes audio files to
 - **Authentication**: (future enhancement)
 
 ### 2. CLI Client
-- **Shared Types**: Reuses Protobuf messages for consistency
-- To be decided
+- **Status**: Not yet implemented
+- **Planned**: Shared types using Protobuf messages for consistency
 
 ### 3. Library Management
-- **Import Service**: Handles audio file imports with optional metadata and cover art overrides
-- **Storage Interface**: Generic repository pattern for database abstraction
-- **Metadata Extraction**: Automatic tag reading from audio files
-- **Library as Queue**: Songs progress through processing states within the library itself
+- **Import Service**: ✅ Handles audio file imports with optional metadata and cover art overrides
+- **Storage Interface**: ✅ Generic repository pattern with SQLite and in-memory implementations
+- **Metadata Extraction**: ❌ Automatic tag reading from audio files (not implemented)
+- **Library as Queue**: ⚠️ Songs created but don't progress without background processing
 
 ### 4. Audio Processing Pipeline
-- **Background Processing**: Songs move through discrete processing states
-- **demucs Integration**: Wrapper around external CLI tool for vocal/instrumental separation
-- **File Management**: Storage of original, vocal, instrumental tracks and cover art
-- **State Management**: Processing status tracking with error handling
+- **Background Processing**: ❌ Songs move through discrete processing states (not implemented)
+- **demucs Integration**: ❌ Wrapper around external CLI tool for vocal/instrumental separation (not implemented)
+- **File Management**: ✅ Storage of original, vocal, instrumental tracks and cover art
+- **State Management**: ✅ Processing status tracking with error handling
 
 ### 5. Download Engine
-- **Multi-Version Support**: Original, vocal-only, instrumental-only, and karaoke mixes
-- **Audio Mixing**: Dynamic vocal reduction and instrumental boost for karaoke version
-- **Format Support**: MP3 and WAV export formats
-- **Direct Downloads**: Binary data transfer without URL management
+- **Multi-Version Support**: ⚠️ Original, vocal-only, instrumental-only work; karaoke mixes not implemented
+- **Audio Mixing**: ❌ Dynamic vocal reduction and instrumental boost for karaoke version (not implemented)
+- **Format Support**: ⚠️ Original formats supported; no on-the-fly conversion
+- **Direct Downloads**: ✅ Binary data transfer without URL management
 
 ## Data Models
 
@@ -95,9 +97,9 @@ VoxStrip is an AI-based karaoke system built in Go that processes audio files to
 - **Path References**: All file locations stored as string paths
 
 ### Repository Pattern
-- **Interface**: Generic CRUD operations for song entities
-- **Implementations**: In-memory for development, database for production
-- **Abstraction**: Easy switching between storage backends
+- **Interface**: ✅ Generic CRUD operations for song entities
+- **Implementations**: ✅ In-memory for development, SQLite for production
+- **Abstraction**: ✅ Easy switching between storage backends
 
 ## Configuration Management
 
@@ -115,21 +117,19 @@ VoxStrip is an AI-based karaoke system built in Go that processes audio files to
 ## Technology Stack
 
 ### Core Technologies
-- **Language**: Go 1.21+
+- **Language**: Go 1.24.1
 - **RPC**: Connect RPC + Protocol Buffers
-- **CLI**: urfave/cli/v3 for command-line interface
+- **CLI**: Not yet implemented (planned: urfave/cli/v3)
 - **Configuration**: caarlos0/env/v11 for environment-based settings
+- **Database**: modernc.org/sqlite for production storage
 
 ### External Dependencies
-- **demucs CLI**: External tool for vocal/instrumental separation
-- **Taglib**: Go bindings for audio metadata extraction
-- **FFmpeg**: Audio processing and format conversion
+- **demucs CLI**: ❌ External tool for vocal/instrumental separation (not integrated)
+- **Taglib**: ❌ Go bindings for audio metadata extraction (not integrated)
+- **FFmpeg**: ❌ Audio processing and format conversion (not integrated)
 
 ### Future Enhancements
-- **Database**: PostgreSQL with GORM for persistence
-- **Cache**: Redis for session management and performance
-- **Message Queue**: RabbitMQ/Apache Kafka for distributed processing
-- **Object Storage**: S3-compatible storage for audio files
+- **Audio Processing**: demucs, Taglib, and FFmpeg integration
 
 ## Security Considerations
 
@@ -149,35 +149,55 @@ VoxStrip is an AI-based karaoke system built in Go that processes audio files to
 
 ## Development Phases
 
-### Phase 1: Core Infrastructure
-- [ ] Go project structure setup
-- [ ] Protobuf service definition
-- [ ] Connect RPC server implementation
-- [ ] In-memory repository implementation
-- [ ] Basic file upload/download functionality
+### Phase 1: Core Infrastructure ✅ COMPLETED
+- [x] Go project structure setup
+- [x] Protobuf service definition
+- [x] Connect RPC server implementation
+- [x] SQLite repository implementation
+- [x] Basic file upload/download functionality
+- [x] Configuration management system
+- [x] CORS and middleware support
 
-### Phase 2: Audio Processing
+### Phase 2: Audio Processing ❌ NOT STARTED
 - [ ] Background processing system
 - [ ] demucs CLI integration
-- [ ] File management and storage
 - [ ] Audio mixing for karaoke versions
+- [ ] Format conversion and bitrate control
+- [ ] Duration detection from audio files
 
-### Phase 3: Library Management
+### Phase 3: Library Management ⚠️ PARTIALLY COMPLETED
+- [x] Song listing and filtering
+- [x] Cover art handling and processing
 - [ ] Metadata extraction from audio files
 - [ ] Lyrics parsing and synchronization
-- [ ] Song listing and filtering
-- [ ] Cover art handling and processing
 
-### Phase 4: Production Readiness
-- [ ] PostgreSQL repository implementation
-- [ ] Configuration management system
-- [ ] Comprehensive error handling and logging
+### Phase 4: Production Readiness ⚠️ PARTIALLY COMPLETED
+- [x] Comprehensive error handling and logging
+- [ ] CLI client implementation
 - [ ] Testing suite and documentation
+- [ ] Performance optimizations
+- [ ] Security hardening
 
 ## Design Principles
 
-- **Simplicity**: Favor clear, straightforward solutions over complex ones
-- **Consistency**: Uniform naming conventions and patterns throughout
-- **Flexibility**: Support for multiple audio versions and formats
-- **Performance**: Efficient handling of large audio files and libraries
-- **Maintainability**: Clean separation of concerns and modular design
+- **Simplicity**: ✅ Favor clear, straightforward solutions over complex ones
+- **Consistency**: ✅ Uniform naming conventions and patterns throughout
+- **Flexibility**: ⚠️ Support for multiple audio versions and formats (partially implemented)
+- **Performance**: ✅ Efficient handling of large audio files and libraries
+- **Maintainability**: ✅ Clean separation of concerns and modular design
+
+## Current Limitations
+
+1. **No Audio Processing**: Songs remain in PENDING status indefinitely
+2. **No Metadata Extraction**: All metadata must be provided manually
+3. **No Format Conversion**: Downloads return original uploaded format only
+4. **No CLI Tools**: Server-only implementation currently
+5. **SQLite Limitations**: Single-file database may not scale for large libraries
+
+## Next Development Priorities
+
+1. **Implement Background Processing System** - Critical for core functionality
+2. **Integrate demucs CLI** - Essential for vocal separation
+3. **Add Metadata Extraction** - Improve user experience
+4. **Implement Karaoke Mixing** - Complete the download engine
+5. **Build CLI Client** - Provide user-friendly interface
