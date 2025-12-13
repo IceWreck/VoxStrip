@@ -17,8 +17,8 @@ func newTaglibMetadataExtractor() *taglibMetadataExtractor {
 	return &taglibMetadataExtractor{}
 }
 
-// ExtractMetadata extracts metadata from an audio file using taglib
-func (e *taglibMetadataExtractor) ExtractMetadata(ctx context.Context, audioPath string) (*store.Metadata, int64, error) {
+// extractMetadata extracts metadata from an audio file using taglib
+func (e *taglibMetadataExtractor) extractMetadata(ctx context.Context, audioPath string) (*store.Metadata, int64, error) {
 	slog.Debug("extracting metadata", "file", audioPath)
 
 	// Read tags

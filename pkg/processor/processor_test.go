@@ -33,7 +33,7 @@ func TestTaglibMetadataExtractor(t *testing.T) {
 	ctx := context.Background()
 
 	// This will likely fail with an invalid MP3, but tests the integration
-	metadata, duration, err := extractor.ExtractMetadata(ctx, testFile)
+	metadata, duration, err := extractor.extractMetadata(ctx, testFile)
 
 	// We expect this to fail with an invalid file, but the function should not panic
 	if err == nil {
@@ -50,7 +50,7 @@ func TestDemucsSeparator(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with non-existent file
-	_, _, err := separator.SeparateVocals(ctx, "nonexistent.mp3")
+	_, _, err := separator.separateVocals(ctx, "nonexistent.mp3")
 	if err == nil {
 		t.Error("expected error for non-existent file")
 	}

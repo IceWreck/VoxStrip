@@ -24,8 +24,8 @@ func newDemucsSeparator(tempDir string, demucsCommand string) *demucsSeparator {
 	}
 }
 
-// SeparateVocals separates vocals and instruments using Demucs
-func (d *demucsSeparator) SeparateVocals(ctx context.Context, inputPath string) (vocalPath, instrumentalPath string, err error) {
+// separateVocals separates vocals and instruments using Demucs
+func (d *demucsSeparator) separateVocals(ctx context.Context, inputPath string) (vocalPath, instrumentalPath string, err error) {
 	slog.Debug("starting audio separation", "input", inputPath)
 
 	// Create output directory for this specific file
