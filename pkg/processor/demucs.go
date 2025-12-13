@@ -16,8 +16,8 @@ type demucsSeparator struct {
 	demucsCommand string
 }
 
-// NewDemucsSeparator creates a new Demucs-based audio separator
-func NewDemucsSeparator(tempDir string, demucsCommand string) AudioSeparator {
+// newDemucsSeparator creates a new Demucs-based audio separator
+func newDemucsSeparator(tempDir string, demucsCommand string) *demucsSeparator {
 	return &demucsSeparator{
 		tempDir:       tempDir,
 		demucsCommand: demucsCommand,

@@ -29,7 +29,7 @@ func TestTaglibMetadataExtractor(t *testing.T) {
 	}
 	file.Close()
 
-	extractor := NewTaglibMetadataExtractor()
+	extractor := newTaglibMetadataExtractor()
 	ctx := context.Background()
 
 	// This will likely fail with an invalid MP3, but tests the integration
@@ -46,7 +46,7 @@ func TestDemucsSeparator(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	separator := NewDemucsSeparator("demucs", t.TempDir())
+	separator := newDemucsSeparator("demucs", t.TempDir())
 	ctx := context.Background()
 
 	// Test with non-existent file

@@ -12,8 +12,8 @@ import (
 // taglibMetadataExtractor implements MetadataExtractor using go-taglib
 type taglibMetadataExtractor struct{}
 
-// NewTaglibMetadataExtractor creates a new taglib-based metadata extractor
-func NewTaglibMetadataExtractor() MetadataExtractor {
+// newTaglibMetadataExtractor creates a new taglib-based metadata extractor
+func newTaglibMetadataExtractor() *taglibMetadataExtractor {
 	return &taglibMetadataExtractor{}
 }
 

@@ -9,22 +9,6 @@ import (
 	"github.com/IceWreck/VoxStrip/pkg/store"
 )
 
-// Processor defines the interface for audio processing
-type Processor interface {
-	Start(ctx context.Context) error
-	Stop() error
-}
-
-// AudioSeparator defines the interface for vocal/instrumental separation
-type AudioSeparator interface {
-	SeparateVocals(ctx context.Context, inputPath string) (vocalPath, instrumentalPath string, err error)
-}
-
-// MetadataExtractor defines the interface for extracting metadata from audio files
-type MetadataExtractor interface {
-	ExtractMetadata(ctx context.Context, audioPath string) (*store.Metadata, int64, error)
-}
-
 // audioProcessor is the main processor implementation
 type audioProcessor struct {
 	store     store.Store
@@ -35,7 +19,7 @@ type audioProcessor struct {
 }
 
 // New creates a new audio processor
-func New(store store.Store, blobStore blobstore.Store, config config.Config) Processor {
+func New(store store.Store, blobStore blobstore.Store, config config.Config) *audioProcessor {
 	return &audioProcessor{
 		store:     store,
 		blobStore: blobStore,

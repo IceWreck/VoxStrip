@@ -122,13 +122,13 @@ func (w *worker) processSong(ctx context.Context, song *store.Song) error {
 	defer os.Remove(originalPath) // Clean up temp file
 
 	// Step 1: Extract metadata
-	metadataExtractor := NewTaglibMetadataExtractor()
+	metadataExtractor := newTaglibMetadataExtractor()
 	if err := w.extractAndUpdateMetadata(ctx, song, originalPath, metadataExtractor); err != nil {
 		return fmt.Errorf("metadata extraction failed: %w", err)
 	}
 
 	// Step 2: Separate audio
-	separator := NewDemucsSeparator(w.config.TempDir, w.config.DemucsCommand)
+	separator := newDemucsSeparator(w.config.TempDir, w.config.DemucsCommand)
 	vocalPath, instrumentalPath, err := separator.SeparateVocals(ctx, originalPath)
 	if err != nil {
 		return fmt.Errorf("audio separation failed: %w", err)
@@ -183,7 +183,7 @@ func (w *worker) downloadOriginalFile(ctx context.Context, songID string) (strin
 }
 
 // extractAndUpdateMetadata extracts metadata and updates the song if fields are empty
-func (w *worker) extractAndUpdateMetadata(ctx context.Context, song *store.Song, audioPath string, metadataExtractor MetadataExtractor) error {
+func (w *worker) extractAndUpdateMetadata(ctx context.Context, song *store.Song, audioPath string, metadataExtractor *taglibMetadataExtractor) error {
 	metadata, duration, err := metadataExtractor.ExtractMetadata(ctx, audioPath)
 	if err != nil {
 		return err
