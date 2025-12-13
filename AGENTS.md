@@ -17,6 +17,9 @@ VoxStrip is an AI-based karaoke system built in Go that processes audio files to
 - Explain "why," not "what" – Comments should clarify intent, not restate code.
 - Avoid redundant comments – Don't comment obvious things.
 - Use comments for complex logic – Explain non-trivial decisions or workarounds.
+- Write package, type, function, and method comments as full sentences; start with the name being described.
+- Avoid premature abstractions; add interfaces or patterns only when they clarify behavior.
+- While writing Go, accept interfaces and return types unless there is a clear reason not to do so.
 
 ## Formatting, Linting & Building
 
@@ -31,8 +34,6 @@ Build with:
 ```
 make build
 ```
-Do not use go build directory use this please.
-
 
 Regenerate protobuf:
 
