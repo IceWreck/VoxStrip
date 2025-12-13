@@ -7,9 +7,9 @@ import (
 	"net/http"
 )
 
-// mimeToExt maps supported MIME types to file extensions.
+// MimeToExt maps supported MIME types to file extensions.
 // Only these file types are supported - any other MIME type will cause Store to fail.
-var mimeToExt = map[string]string{
+var MimeToExt = map[string]string{
 	// audio (for songs)
 	"audio/mpeg":      ".mp3",
 	"audio/wav":       ".wav",
@@ -28,9 +28,9 @@ var mimeToExt = map[string]string{
 	"image/webp": ".webp",
 }
 
-var extToMime = func() map[string]string {
+var ExtToMime = func() map[string]string {
 	result := make(map[string]string)
-	for mime, ext := range mimeToExt {
+	for mime, ext := range MimeToExt {
 		result[ext] = mime
 	}
 	return result
@@ -51,7 +51,7 @@ func detectContentTypeAndExtension(data io.Reader) (string, string, io.Reader, e
 
 	mimeType := http.DetectContentType(buffer[:n])
 
-	ext, exists := mimeToExt[mimeType]
+	ext, exists := MimeToExt[mimeType]
 	if !exists {
 		return "", "", nil, fmt.Errorf("unsupported MIME type: %s", mimeType)
 	}

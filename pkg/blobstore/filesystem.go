@@ -74,7 +74,7 @@ func (fs *FileSystemStore) Store(ctx context.Context, songID string, fileType Fi
 func (fs *FileSystemStore) Get(ctx context.Context, songID string, fileType FileType) (io.ReadCloser, *BlobInfo, error) {
 	dir := filepath.Join(fs.basePath, string(fileType))
 
-	for ext, mimeType := range extToMime {
+	for ext, mimeType := range ExtToMime {
 		filePath := filepath.Join(dir, songID+ext)
 		if stat, err := os.Stat(filePath); err == nil {
 			file, err := os.Open(filePath)
