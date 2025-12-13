@@ -14,6 +14,7 @@ import (
 	"github.com/IceWreck/VoxStrip/pkg/blobstore"
 	"github.com/IceWreck/VoxStrip/pkg/config"
 	"github.com/IceWreck/VoxStrip/pkg/logger"
+	"github.com/IceWreck/VoxStrip/pkg/processor"
 	"github.com/IceWreck/VoxStrip/pkg/store/sqlite"
 )
 
@@ -45,6 +46,16 @@ func main() {
 
 	// Initialize service
 	service := api.NewService(store, cfg, blobstore)
+
+	// Initialize audio processor
+	audioProcessor := processor.New(store, blobstore, *cfg)
+
+	// Start audio processor
+	go func() {
+		if err := audioProcessor.Start(context.Background()); err != nil {
+			slog.Error("audio processor failed", "error", err)
+		}
+	}()
 
 	// Setup server
 	handler, err := api.NewServer(service)
@@ -81,6 +92,11 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	slog.Info("shutting down server...")
+
+	// Stop audio processor
+	if err := audioProcessor.Stop(); err != nil {
+		slog.Error("failed to stop audio processor", "error", err)
+	}
 
 	// Graceful shutdown with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

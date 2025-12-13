@@ -31,8 +31,10 @@ Build with:
 ```
 make build
 ```
+Do not use go build directory use this please.
 
-Regenerate protbuf with
+
+Regenerate protobuf:
 
 ```
 make buf-gen
