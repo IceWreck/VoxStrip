@@ -1,6 +1,8 @@
 package config
 
 import (
+	"time"
+
 	"github.com/caarlos0/env/v11"
 )
 
@@ -17,6 +19,17 @@ type Config struct {
 	Storage struct {
 		BlobStoreDir string `env:"BLOBSTORE_DIR" envDefault:"./data/blobs"`
 	}
+
+	AudioProcessing AudioProcessingConfig
+}
+
+// AudioProcessingConfig holds configuration for audio processing
+type AudioProcessingConfig struct {
+	WorkerCount       int           `env:"AUDIO_WORKER_COUNT" envDefault:"2"`
+	PollInterval      time.Duration `env:"AUDIO_POLL_INTERVAL" envDefault:"5s"`
+	ProcessingTimeout time.Duration `env:"AUDIO_PROCESSING_TIMEOUT" envDefault:"20m"`
+	DemucsPath        string        `env:"DEMUCS_PATH" envDefault:"demucs"`
+	TempDir           string        `env:"AUDIO_TEMP_DIR" envDefault:"./temp"`
 }
 
 func Load() (*Config, error) {
