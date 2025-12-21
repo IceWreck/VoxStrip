@@ -59,29 +59,18 @@ func (w *worker) wait() {
 
 // processNextSong finds and processes the next pending song
 func (w *worker) processNextSong(ctx context.Context) error {
-	// Get next pending song
-	songs, _, _, err := w.store.ListSongs(ctx, store.ListOptions{
-		PageSize:     1,
-		StatusFilter: store.ProcessingStatusPending,
-	})
+	// Atomically claim the next pending song
+	song, err := w.store.ClaimNextPendingSong(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to list pending songs: %w", err)
+		return fmt.Errorf("failed to claim next pending song: %w", err)
 	}
 
-	if len(songs) == 0 {
+	if song == nil {
 		// No pending songs
 		return nil
 	}
 
-	song := songs[0]
 	slog.Info("processing song", "worker_id", w.id, "song_id", song.ID, "title", song.Metadata.Title)
-
-	// Mark as processing
-	song.ProcessingStatus = store.ProcessingStatusProcessing
-	song.UpdatedAt = time.Now()
-	if err := w.store.UpdateSong(ctx, song); err != nil {
-		return fmt.Errorf("failed to mark song as processing: %w", err)
-	}
 
 	// Process with timeout
 	processCtx, cancel := context.WithTimeout(ctx, w.config.ProcessingTimeout)
@@ -129,7 +118,7 @@ func (w *worker) processSong(ctx context.Context, song *store.Song) error {
 
 	// Step 2: Separate audio
 	separator := newDemucsSeparator(w.config.TempDir, w.config.DemucsCommand)
-	vocalPath, instrumentalPath, err := separator.separateVocals(ctx, originalPath)
+	vocalPath, instrumentalPath, err := separator.separateVocals(ctx, song.ID, originalPath)
 	if err != nil {
 		return fmt.Errorf("audio separation failed: %w", err)
 	}
@@ -164,6 +153,11 @@ func (w *worker) downloadOriginalFile(ctx context.Context, songID string) (strin
 	tempDir := w.config.TempDir
 	if tempDir == "" {
 		tempDir = os.TempDir()
+	}
+
+	// Ensure temp directory exists
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return "", nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
 
 	outputPath := filepath.Join(tempDir, fmt.Sprintf("original-%s%s", songID, ext))

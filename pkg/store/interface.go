@@ -62,6 +62,10 @@ type Store interface {
 	// DeleteSong removes a song from the store
 	DeleteSong(ctx context.Context, id string) error
 
+	// ClaimNextPendingSong atomically claims the next pending song for processing
+	// Returns nil if no pending songs are available
+	ClaimNextPendingSong(ctx context.Context) (*Song, error)
+
 	// Close closes the store and releases resources
 	Close() error
 }

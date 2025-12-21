@@ -40,10 +40,20 @@ func NewStore(dbPath string) (store.Store, error) {
 		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
 	}
 
-	// Configure connection pool
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
+	// Configure connection pool for better concurrency
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(5 * time.Minute)
+
+	// Enable WAL mode for better concurrent access
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
+	}
+
+	// Set busy timeout to handle contention
+	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		return nil, fmt.Errorf("failed to set busy timeout: %w", err)
+	}
 
 	slog.Info("sqlite store initialized", "path", dbPath)
 
@@ -299,4 +309,78 @@ func (s *sqliteStore) DeleteSong(ctx context.Context, id string) error {
 
 	slog.Debug("song deleted successfully", "id", id)
 	return nil
+}
+
+// ClaimNextPendingSong atomically claims the next pending song for processing
+func (s *sqliteStore) ClaimNextPendingSong(ctx context.Context) (*store.Song, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Find the next pending song
+	query := `
+		SELECT id, title, artist, album, album_artist, genre, lyrics,
+			   created_at, updated_at, processing_status, processing_error,
+			   duration_ms
+		FROM songs
+		WHERE processing_status = ?
+		ORDER BY created_at ASC
+		LIMIT 1
+	`
+	row := tx.QueryRowContext(ctx, query, int(store.ProcessingStatusPending))
+	var song store.Song
+	var processingStatus int
+
+	err = row.Scan(
+		&song.ID,
+		&song.Metadata.Title,
+		&song.Metadata.Artist,
+		&song.Metadata.Album,
+		&song.Metadata.AlbumArtist,
+		&song.Metadata.Genre,
+		&song.Metadata.Lyrics,
+		&song.CreatedAt,
+		&song.UpdatedAt,
+		&processingStatus,
+		&song.ProcessingError,
+		&song.DurationMs,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // No pending songs
+		}
+		return nil, fmt.Errorf("failed to scan pending song: %w", err)
+	}
+
+	// Mark it as processing
+	updateQuery := `
+		UPDATE songs 
+		SET processing_status = ?, updated_at = ?
+		WHERE id = ? AND processing_status = ?
+	`
+	result, err := tx.ExecContext(ctx, updateQuery, int(store.ProcessingStatusProcessing), time.Now(), song.ID, int(store.ProcessingStatusPending))
+	if err != nil {
+		return nil, fmt.Errorf("failed to claim song: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("failed to check rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		// Song was claimed by another worker
+		return nil, nil
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	song.ProcessingStatus = store.ProcessingStatusProcessing
+	slog.Debug("song claimed successfully", "id", song.ID)
+	return &song, nil
 }

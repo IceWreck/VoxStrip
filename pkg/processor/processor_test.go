@@ -50,7 +50,7 @@ func TestDemucsSeparator(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with non-existent file
-	_, _, err := separator.separateVocals(ctx, "nonexistent.mp3")
+	_, _, err := separator.separateVocals(ctx, "test-song-id", "nonexistent.mp3")
 	if err == nil {
 		t.Error("expected error for non-existent file")
 	}

@@ -161,3 +161,37 @@ func (s *inmemoryStore) DeleteSong(ctx context.Context, id string) error {
 	slog.Debug("song deleted from memory", "id", id)
 	return nil
 }
+
+// ClaimNextPendingSong atomically claims the next pending song for processing
+func (s *inmemoryStore) ClaimNextPendingSong(ctx context.Context) (*store.Song, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Find the oldest pending song
+	var oldestSong *store.Song
+	var oldestTime time.Time
+	first := true
+
+	for _, song := range s.songs {
+		if song.ProcessingStatus == store.ProcessingStatusPending {
+			if first || song.CreatedAt.Before(oldestTime) {
+				oldestSong = song
+				oldestTime = song.CreatedAt
+				first = false
+			}
+		}
+	}
+
+	if oldestSong == nil {
+		return nil, nil // No pending songs
+	}
+
+	// Mark it as processing
+	songCopy := *oldestSong
+	songCopy.ProcessingStatus = store.ProcessingStatusProcessing
+	songCopy.UpdatedAt = time.Now()
+	s.songs[oldestSong.ID] = &songCopy
+
+	slog.Debug("song claimed in memory", "id", oldestSong.ID)
+	return &songCopy, nil
+}
