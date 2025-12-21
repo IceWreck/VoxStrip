@@ -10,6 +10,7 @@ import {
   VolumeXIcon,
 } from 'lucide-react';
 import type { AudioPlayerActions, AudioPlayerState } from '../../hooks/useAudioPlayer.js';
+import { formatTime } from '../../utils/formatters.js';
 
 type PlayerControlsProps = {
   audioPlayer: AudioPlayerState & AudioPlayerActions;
@@ -23,12 +24,6 @@ type PlayerControlsProps = {
   onDownload: () => void;
   canSkipBackward: boolean;
   canSkipForward: boolean;
-};
-
-const formatTime = (time: number): string => {
-  const minutes = Math.floor(time / 60);
-  const seconds = Math.floor(time % 60);
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
 export default function PlayerControls({

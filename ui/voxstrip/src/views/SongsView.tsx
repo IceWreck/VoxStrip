@@ -1,97 +1,34 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { SearchIcon, PlusIcon, RefreshCwIcon } from 'lucide-react';
 import type { Song } from '../api/client.js';
-import { VoxStripAPI, handleAPIError } from '../api/client.js';
+import { formatDuration } from '../utils/formatters.js';
+import { SearchIcon, PlusIcon, RefreshCwIcon } from 'lucide-react';
+import { useSongsLibrary } from '../hooks/useSongsLibrary.js';
 import { useAppContext } from '../router/context.js';
 import { UI_CONFIG } from '../config.js';
 import StatusBadge from '../components/StatusBadge.js';
+import { isProcessingComplete } from '../utils/statusHelpers.js';
 
 export default function SongsView() {
   const { queue } = useAppContext();
-  const [songs, setSongs] = useState<Song[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [pageSize, setPageSize] = useState<number>(UI_CONFIG.DEFAULT_PAGE_SIZE);
-  const [pageToken, setPageToken] = useState<string>('');
-  const [totalSize, setTotalSize] = useState(0);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Load songs
-  const loadSongs = useCallback(async (refresh = false) => {
-    try {
-      setLoading(!refresh);
-      setError(null);
-      
-      const response = await VoxStripAPI.listSongs({
-        pageSize,
-        pageToken: refresh ? '' : pageToken,
-      });
-
-      if (refresh) {
-        setSongs(response.songs);
-        setPageToken('');
-      } else {
-        // Ensure no duplicates when loading more songs
-        setSongs(prev => {
-          const existingIds = new Set(prev.map(song => song.songId));
-          const newSongs = response.songs.filter(song => !existingIds.has(song.songId));
-          return [...prev, ...newSongs];
-        });
-      }
-      
-      setTotalSize(Number(response.totalSize) || response.songs.length);
-      
-    } catch (err) {
-      const apiError = handleAPIError(err);
-      setError(apiError.message);
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [pageSize, pageToken]);
-
-  // Initial load
-  useEffect(() => {
-    loadSongs();
-  }, [loadSongs]);
-
-  // Handle refresh
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    loadSongs(true);
-  };
-
-  // Filter songs based on search term
-  const filteredSongs = useMemo(() => {
-    if (!searchTerm.trim()) return songs;
-
-    const searchLower = searchTerm.toLowerCase();
-    return songs.filter(song => {
-      const metadata = song.metadata;
-      if (!metadata) return false;
-      
-      return (
-        metadata.title?.toLowerCase().includes(searchLower) ||
-        metadata.artist?.toLowerCase().includes(searchLower) ||
-        metadata.album?.toLowerCase().includes(searchLower) ||
-        metadata.genre?.toLowerCase().includes(searchLower)
-      );
-    });
-  }, [songs, searchTerm]);
+  const {
+    songs: allSongs,
+    totalSize,
+    loading,
+    refreshing,
+    error,
+    searchTerm,
+    setSearchTerm,
+    filteredSongs,
+    pageSize,
+    setPageSize,
+    loadMore,
+    hasMore,
+    refresh,
+    clearError,
+  } = useSongsLibrary();
 
   // Add song to queue
   const handleAddToQueue = (song: Song) => {
     queue.addToQueue(song);
-  };
-
-  // Format duration
-  const formatDuration = (durationMs?: number): string => {
-    if (!durationMs) return '--:--';
-    const seconds = Math.floor(Number(durationMs) / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -107,11 +44,11 @@ export default function SongsView() {
         
         <div className="flex gap-2">
           <button
-            onClick={handleRefresh}
-            disabled={isRefreshing || loading}
+            onClick={refresh}
+            disabled={refreshing || loading}
             className="btn preset-outline flex items-center gap-2"
           >
-            <RefreshCwIcon size={16} className={isRefreshing ? 'animate-spin' : ''} />
+            <RefreshCwIcon size={16} className={refreshing ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>
@@ -135,8 +72,6 @@ export default function SongsView() {
           onChange={(e) => {
             const newPageSize = Number(e.target.value);
             setPageSize(newPageSize);
-            setPageToken('');
-            setSongs([]);
           }}
           className="px-3 py-2 border border-surface-200-800 rounded-lg bg-surface-50-950 focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
@@ -153,11 +88,14 @@ export default function SongsView() {
         <div className="card preset-tonal-error p-4">
           <p className="font-medium">Error loading songs</p>
           <p className="text-sm opacity-80">{error}</p>
+          <button onClick={clearError} className="btn preset-outline mt-2">
+            Clear Error
+          </button>
         </div>
       )}
 
       {/* Loading State */}
-      {loading && songs.length === 0 ? (
+      {loading && allSongs.length === 0 ? (
         <div className="space-y-4">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="card p-4 animate-pulse">
@@ -206,24 +144,24 @@ export default function SongsView() {
                       {song.metadata?.album || 'Unknown Album'}
                     </div>
                   </td>
-                  <td className="p-3">
-                    <div className="text-surface-600-400">
-                      {formatDuration(Number(song.durationMs))}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <StatusBadge status={song.processingStatus} showIcon={false} />
-                  </td>
-                  <td className="p-3 text-right">
-                     <button
-                       onClick={() => handleAddToQueue(song)}
-                       disabled={song.processingStatus !== 3} // Only completed songs can be added
-                       className="btn preset-outline flex items-center gap-1"
-                     >
-                      <PlusIcon size={14} />
-                      Add
-                    </button>
-                  </td>
+                   <td className="p-3">
+                     <div className="text-surface-600-400">
+                       {formatDuration(Number(song.durationMs))}
+                     </div>
+                   </td>
+                   <td className="p-3">
+                     <StatusBadge status={song.processingStatus} showIcon={false} />
+                   </td>
+                   <td className="p-3 text-right">
+                      <button
+                        onClick={() => handleAddToQueue(song)}
+                        disabled={!isProcessingComplete(song.processingStatus)}
+                        className="btn preset-outline flex items-center gap-1"
+                      >
+                       <PlusIcon size={14} />
+                       Add
+                     </button>
+                   </td>
                 </tr>
               ))}
             </tbody>
@@ -248,10 +186,10 @@ export default function SongsView() {
       )}
 
       {/* Load More */}
-      {!loading && songs.length < totalSize && (
+      {!loading && hasMore && (
         <div className="text-center py-4">
           <button
-            onClick={() => loadSongs()}
+            onClick={loadMore}
             disabled={loading}
             className="btn preset-outline flex items-center gap-2 mx-auto"
           >

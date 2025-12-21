@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import type { Song } from '../api/client.js';
+import { isProcessingComplete } from '../utils/statusHelpers.js';
 
 export interface QueueItem {
   song: Song;
@@ -41,6 +42,12 @@ export function useQueue(): QueueState & QueueActions {
 
   // Add song to queue
   const addToQueue = useCallback((song: Song) => {
+    // Only allow songs that are fully processed to be added to queue
+    if (!isProcessingComplete(song.processingStatus)) {
+      console.warn('Cannot add song to queue: processing not completed', song.songId);
+      return;
+    }
+
     setState(prevState => {
       const newItem: QueueItem = {
         song,

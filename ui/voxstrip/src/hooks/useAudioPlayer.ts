@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Song } from '../api/client.js';
 import type { AudioVersionKey } from '../config.js';
-import { UI_CONFIG, DEFAULT_AUDIO_VERSION } from '../config.js';
+import { UI_CONFIG, DEFAULT_AUDIO_VERSION, versionKeyToEnum } from '../config.js';
 import { VoxStripAPI } from '../api/client.js';
+import { AudioFormat } from '../proto/server_pb.js';
 
 export interface AudioPlayerState {
   currentSong: Song | null;
@@ -199,16 +200,20 @@ export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
         isPlaying: false 
       }));
 
-      // Download audio data for specific version
+      const versionEnum = versionKeyToEnum(version);
+      if (versionEnum === null) {
+        throw new Error('Unsupported audio version');
+      }
+
       const response = await VoxStripAPI.downloadAudio({
         songId: song.songId,
-        version: version.toLowerCase() as 'original' | 'vocal' | 'instrumental' | 'karaoke',
-        format: 'mp3',
-        bitrate: 320
+        version: versionEnum,
+        format: AudioFormat.MP3,
+        bitrate: 320,
       });
 
       // Create blob URL from audio data
-      const audioBlob = new Blob([response.audio], { type: 'audio/mpeg' });
+      const audioBlob = new Blob([new Uint8Array(response.audio)], { type: 'audio/mpeg' });
       const audioUrl = URL.createObjectURL(audioBlob);
       
       // Clean up old blob URL
@@ -256,7 +261,7 @@ export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
         isPlaying: false 
       }));
     }
-  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [versionKeyToEnum]);
 
   // Seek forward
   const seekForward = useCallback(() => {

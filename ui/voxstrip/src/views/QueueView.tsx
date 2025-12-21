@@ -1,68 +1,17 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { useState, type DragEvent } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Trash2Icon, GripVerticalIcon } from 'lucide-react';
 import { useAppContext } from '../router/context.js';
-import { VoxStripAPI } from '../api/client.js';
+import { useCoverArtCache, useBatchCoverArtLoader } from '../hooks/useCoverArtCache.js';
 import StatusBadge from '../components/StatusBadge.js';
-
-const formatDuration = (durationMs?: number): string => {
-  if (!durationMs) return '--:--';
-  const seconds = Math.floor(Number(durationMs) / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-};
+import { formatDuration } from '../utils/formatters.js';
 
 export default function QueueView() {
   const { queue, audioPlayer } = useAppContext();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [coverArtUrls, setCoverArtUrls] = useState<Map<string, string>>(new Map());
-  const generatedUrlsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    let cancelled = false;
-    const missingItems = queue.items.filter(item => !coverArtUrls.has(item.song.songId));
-    if (missingItems.length === 0) {
-      return;
-    }
-
-    const loadCoverArts = async () => {
-      const updates: Array<[string, string]> = [];
-      for (const item of missingItems) {
-        try {
-          const response = await VoxStripAPI.getCoverArt(item.song.songId);
-          const blob = new Blob([response.image], { type: 'image/jpeg' });
-          const url = URL.createObjectURL(blob);
-          generatedUrlsRef.current.add(url);
-          updates.push([item.song.songId, url]);
-        } catch (error) {
-          console.error(`Failed to load cover art for ${item.song.songId}:`, error);
-        }
-      }
-
-      if (cancelled || updates.length === 0) {
-        return;
-      }
-
-      setCoverArtUrls(prev => {
-        const next = new Map(prev);
-        for (const [id, url] of updates) {
-          next.set(id, url);
-        }
-        return next;
-      });
-    };
-
-    loadCoverArts();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [queue.items, coverArtUrls]);
-
-  useEffect(() => () => {
-    generatedUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
-  }, []);
+  const songIds = queue.items.map(item => item.song.songId);
+  const coverArtCache = useCoverArtCache({ cleanupOnUnmount: false });
+  useBatchCoverArtLoader(songIds, coverArtCache);
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index);
@@ -111,7 +60,7 @@ export default function QueueView() {
         <div className="card preset-tonal-primary p-6">
           <div className="flex items-center gap-4">
             <img
-              src={coverArtUrls.get(currentSong.songId) || '/placeholder-album.png'}
+              src={coverArtCache.get(currentSong.songId) || '/placeholder-album.png'}
               alt={currentSong.metadata?.title || 'Unknown Title'}
               className="w-16 h-16 rounded-lg object-cover"
               onError={(event) => {
@@ -183,7 +132,7 @@ export default function QueueView() {
                     )}
 
                     <img
-                      src={coverArtUrls.get(queueItem.song.songId) || '/placeholder-album.png'}
+                      src={coverArtCache.get(queueItem.song.songId) || '/placeholder-album.png'}
                       alt={queueItem.song.metadata?.title || 'Unknown Title'}
                       className="w-10 h-10 rounded object-cover"
                       onError={(event) => {

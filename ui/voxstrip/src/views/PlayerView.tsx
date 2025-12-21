@@ -9,7 +9,11 @@ import {
   AUDIO_VERSIONS,
   DEFAULT_AUDIO_VERSION,
   type AudioVersionKey,
+  getAudioVersionKeys,
+  versionKeyToEnum,
 } from '../config.js';
+import { isProcessingComplete } from '../utils/statusHelpers.js';
+import { AudioFormat } from '../proto/server_pb.js';
 
 type LyricLine = {
   time: number;
@@ -79,7 +83,7 @@ export default function PlayerView() {
         if (coverArtUrlRef.current) {
           URL.revokeObjectURL(coverArtUrlRef.current);
         }
-        const blob = new Blob([response.image], { type: 'image/jpeg' });
+        const blob = new Blob([new Uint8Array(response.image)], { type: 'image/jpeg' });
         const url = URL.createObjectURL(blob);
         coverArtUrlRef.current = url;
         setCoverArtUrl(url);
@@ -174,14 +178,19 @@ export default function PlayerView() {
     if (!currentSong) return;
 
     try {
+      const versionEnum = versionKeyToEnum(selectedVersion);
+      if (versionEnum === null) {
+        throw new Error('Unsupported audio version');
+      }
+
       const response = await VoxStripAPI.downloadAudio({
         songId: currentSong.songId,
-        version: selectedVersion.toLowerCase() as 'original' | 'vocal' | 'instrumental' | 'karaoke',
-        format: 'mp3',
+        version: versionEnum,
+        format: AudioFormat.MP3,
         bitrate: 320,
       });
 
-      const audioBlob = new Blob([response.audio], { type: 'audio/mpeg' });
+        const audioBlob = new Blob([new Uint8Array(response.audio)], { type: 'audio/mpeg' });
       const url = URL.createObjectURL(audioBlob);
       const link = document.createElement('a');
       link.href = url;
@@ -218,18 +227,18 @@ export default function PlayerView() {
 
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-surface-600-400">Audio Version</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(AUDIO_VERSIONS).map(([key, version]) => (
-                  <button
-                    key={key}
-                    disabled={currentSong.processingStatus !== 3}
-                    className={`btn ${selectedVersion === key ? 'preset-filled' : 'preset-outline'}`}
-                    onClick={() => handleVersionChange(key as AudioVersionKey)}
-                  >
-                    {version.label}
-                  </button>
-                ))}
-              </div>
+               <div className="grid grid-cols-2 gap-2">
+                 {getAudioVersionKeys().map((key) => (
+                   <button
+                     key={key}
+                     disabled={!isProcessingComplete(currentSong.processingStatus)}
+                     className={`btn ${selectedVersion === key ? 'preset-filled' : 'preset-outline'}`}
+                     onClick={() => handleVersionChange(key)}
+                   >
+                     {AUDIO_VERSIONS[key].label}
+                   </button>
+                 ))}
+               </div>
               <div className="text-sm text-surface-500-500">
                 <StatusBadge status={currentSong.processingStatus} showIcon={false} />
               </div>
