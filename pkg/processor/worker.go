@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -176,11 +177,25 @@ func (w *worker) downloadOriginalFile(ctx context.Context, songID string) (strin
 	return outputPath, blobInfo, nil
 }
 
-// extractAndUpdateMetadata extracts metadata and updates the song if fields are empty
+// extractAndUpdateMetadata extracts metadata and cover art, updates the song if fields are empty
 func (w *worker) extractAndUpdateMetadata(ctx context.Context, song *store.Song, audioPath string, metadataExtractor *taglibMetadataExtractor) error {
-	metadata, duration, err := metadataExtractor.extractMetadata(ctx, audioPath)
+	metadata, duration, coverArt, err := metadataExtractor.extractMetadata(ctx, audioPath)
 	if err != nil {
 		return err
+	}
+
+	// Store cover art if it exists and no cover art is already stored
+	if len(coverArt) > 0 {
+		exists, err := w.blobStore.Exists(ctx, song.ID, blobstore.FileTypeCoverArt)
+		if err != nil {
+			slog.Error("failed to check cover art existence", "song_id", song.ID, "error", err)
+		} else if !exists {
+			if _, err := w.blobStore.Store(ctx, song.ID, blobstore.FileTypeCoverArt, bytes.NewReader(coverArt)); err != nil {
+				slog.Error("failed to store extracted cover art", "song_id", song.ID, "error", err)
+			} else {
+				slog.Debug("extracted cover art stored", "song_id", song.ID, "size", len(coverArt))
+			}
+		}
 	}
 
 	// Update duration

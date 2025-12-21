@@ -33,11 +33,11 @@ func TestTaglibMetadataExtractor(t *testing.T) {
 	ctx := context.Background()
 
 	// This will likely fail with an invalid MP3, but tests the integration
-	metadata, duration, err := extractor.extractMetadata(ctx, testFile)
+	metadata, duration, coverArt, err := extractor.extractMetadata(ctx, testFile)
 
 	// We expect this to fail with an invalid file, but the function should not panic
 	if err == nil {
-		t.Logf("Unexpected success with invalid file: metadata=%v, duration=%d", metadata, duration)
+		t.Logf("Unexpected success with invalid file: metadata=%v, duration=%d, coverArt_size=%d", metadata, duration, len(coverArt))
 	}
 }
 

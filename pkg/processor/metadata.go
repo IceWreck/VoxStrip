@@ -17,20 +17,29 @@ func newTaglibMetadataExtractor() *taglibMetadataExtractor {
 	return &taglibMetadataExtractor{}
 }
 
-// extractMetadata extracts metadata from an audio file using taglib
-func (e *taglibMetadataExtractor) extractMetadata(ctx context.Context, audioPath string) (*store.Metadata, int64, error) {
+// extractMetadata extracts metadata and cover art from an audio file using taglib
+func (e *taglibMetadataExtractor) extractMetadata(ctx context.Context, audioPath string) (*store.Metadata, int64, []byte, error) {
 	slog.Debug("extracting metadata", "file", audioPath)
 
 	// Read tags
 	tags, err := taglib.ReadTags(audioPath)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to read audio tags: %w", err)
+		return nil, 0, nil, fmt.Errorf("failed to read audio tags: %w", err)
 	}
 
 	// Read properties (including duration)
 	props, err := taglib.ReadProperties(audioPath)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to read audio properties: %w", err)
+		return nil, 0, nil, fmt.Errorf("failed to read audio properties: %w", err)
+	}
+
+	// Try to extract cover art
+	var coverArt []byte
+	coverArt, err = taglib.ReadImage(audioPath)
+	if err != nil {
+		// Log debug but don't fail - cover art is optional
+		slog.Debug("no cover art found", "file", audioPath, "error", err)
+		coverArt = nil
 	}
 
 	// Helper function to get first value from tag map
@@ -58,7 +67,8 @@ func (e *taglibMetadataExtractor) extractMetadata(ctx context.Context, audioPath
 		"artist", metadata.Artist,
 		"album", metadata.Album,
 		"duration_ms", duration,
+		"has_cover_art", len(coverArt) > 0,
 	)
 
-	return metadata, duration, nil
+	return metadata, duration, coverArt, nil
 }
