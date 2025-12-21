@@ -12,7 +12,7 @@ export default function SongsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [pageSize, setPageSize] = useState(UI_CONFIG.DEFAULT_PAGE_SIZE);
+  const [pageSize, setPageSize] = useState<number>(UI_CONFIG.DEFAULT_PAGE_SIZE);
   const [pageToken, setPageToken] = useState<string>('');
   const [totalSize, setTotalSize] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -215,11 +215,11 @@ export default function SongsView() {
                     <StatusBadge status={song.processingStatus} showIcon={false} />
                   </td>
                   <td className="p-3 text-right">
-                    <button
-                      onClick={() => handleAddToQueue(song)}
-                      disabled={song.processingStatus !== 2} // Only completed songs can be added
-                      className="btn preset-outline flex items-center gap-1"
-                    >
+                     <button
+                       onClick={() => handleAddToQueue(song)}
+                       disabled={song.processingStatus !== 3} // Only completed songs can be added
+                       className="btn preset-outline flex items-center gap-1"
+                     >
                       <PlusIcon size={14} />
                       Add
                     </button>

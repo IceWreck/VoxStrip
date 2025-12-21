@@ -13,6 +13,7 @@ export interface QueueState {
 }
 
 export interface QueueActions {
+  currentSong: Song | null;
   addToQueue: (song: Song) => void;
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
@@ -61,7 +62,9 @@ export function useQueue(): QueueState & QueueActions {
 
   // Remove song from queue
   const removeFromQueue = useCallback((index: number) => {
-    if (index < 0 || index >= state.items.length) return;
+    if (index < 0 || index >= state.items.length) {
+      return;
+    }
 
     setState(prevState => {
       const newItems = prevState.items.filter((_, i) => i !== index);
@@ -137,7 +140,9 @@ export function useQueue(): QueueState & QueueActions {
 
   // Jump to specific index
   const jumpToIndex = useCallback((index: number) => {
-    if (index < 0 || index >= state.items.length) return;
+    if (index < 0 || index >= state.items.length) {
+      return;
+    }
     
     setState(prevState => ({
       ...prevState,
@@ -158,7 +163,9 @@ export function useQueue(): QueueState & QueueActions {
   const moveInQueue = useCallback((fromIndex: number, toIndex: number) => {
     if (fromIndex < 0 || fromIndex >= state.items.length ||
         toIndex < 0 || toIndex >= state.items.length ||
-        fromIndex === toIndex) return;
+        fromIndex === toIndex) {
+      return;
+    }
 
     setState(prevState => {
       const newItems = [...prevState.items];

@@ -32,6 +32,7 @@ export interface AudioPlayerActions {
 
 export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
   const [state, setState] = useState<AudioPlayerState>({
     currentSong: null,
     isPlaying: false,
@@ -109,6 +110,11 @@ export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.pause();
       audio.src = '';
+      // Clean up blob URL
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
     };
   }, []);
 
@@ -193,9 +199,24 @@ export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
         isPlaying: false 
       }));
 
-      // Get download URL for specific version
-      const downloadUrl = VoxStripAPI.getDownloadUrl(song.songId, version as 'original' | 'vocal' | 'instrumental' | 'karaoke');
-      audioRef.current.src = downloadUrl;
+      // Download audio data for specific version
+      const response = await VoxStripAPI.downloadAudio({
+        songId: song.songId,
+        version: version.toLowerCase() as 'original' | 'vocal' | 'instrumental' | 'karaoke',
+        format: 'mp3',
+        bitrate: 320
+      });
+
+      // Create blob URL from audio data
+      const audioBlob = new Blob([response.audio], { type: 'audio/mpeg' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      // Clean up old blob URL
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+      }
+      blobUrlRef.current = audioUrl;
+      audioRef.current.src = audioUrl;
       
       // Wait for audio to load metadata
       await new Promise((resolve, reject) => {
@@ -235,7 +256,7 @@ export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
         isPlaying: false 
       }));
     }
-  }, []);
+  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Seek forward
   const seekForward = useCallback(() => {

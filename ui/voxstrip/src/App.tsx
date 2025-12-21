@@ -3,10 +3,31 @@ import Sidebar from './components/Sidebar.js';
 import { useQueue } from './hooks/useQueue.js';
 import { useAudioPlayer } from './hooks/useAudioPlayer.js';
 import { AppContext } from './router/context.js';
+import { useEffect, useRef } from 'react';
 
 function App() {
   const queue = useQueue();
   const audioPlayer = useAudioPlayer();
+  const lastSyncedSongId = useRef<string | null>(null);
+
+  // Sync queue current song with audio player
+  useEffect(() => {
+    const currentSongId = queue.currentSong?.songId || null;
+    if (currentSongId && currentSongId !== lastSyncedSongId.current) {
+      lastSyncedSongId.current = currentSongId;
+      // Load the current queue song in the default audio version
+      audioPlayer.loadSong(queue.currentSong!, 'ORIGINAL');
+    }
+  }, [queue.currentSong]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync playing state - queue controls audio player
+  useEffect(() => {
+    if (queue.isPlaying && !audioPlayer.isPlaying && queue.currentSong) {
+      audioPlayer.play();
+    } else if (!queue.isPlaying && audioPlayer.isPlaying) {
+      audioPlayer.pause();
+    }
+  }, [queue.isPlaying, audioPlayer.isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AppContext.Provider value={{ queue, audioPlayer }}>

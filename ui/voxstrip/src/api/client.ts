@@ -111,12 +111,58 @@ export class VoxStripAPI {
   /**
    * Download audio file for a specific song and version
    */
-  static getDownloadUrl(songId: string, version: 'original' | 'vocal' | 'instrumental' | 'karaoke'): string {
-    return `${API_CONFIG.BASE_URL}/v1/songs/${songId}/audio/${version}`;
+  static async downloadAudio(options: {
+    songId: string;
+    version: 'original' | 'vocal' | 'instrumental' | 'karaoke';
+    format?: 'mp3' | 'wav';
+    bitrate?: number;
+  }) {
+    const { songId, version, format = 'mp3', bitrate = 320 } = options;
+    
+    try {
+      // Convert version string to protobuf enum
+      const versionMap = {
+        original: 1, // AUDIO_VERSION_ORIGINAL
+        vocal: 2,    // AUDIO_VERSION_VOCAL  
+        instrumental: 3, // AUDIO_VERSION_INSTRUMENTAL
+        karaoke: 4,   // AUDIO_VERSION_KARAOKE
+      } as const;
+      
+      // Convert format string to protobuf enum
+      const formatMap = {
+        mp3: 1, // AUDIO_FORMAT_MP3
+        wav: 2, // AUDIO_FORMAT_WAV
+      } as const;
+
+      const response = await karaokeClient.downloadAudio({
+        songId,
+        version: versionMap[version],
+        outputFormat: formatMap[format],
+        bitrate,
+      });
+
+      return response;
+    } catch (error) {
+      throw handleAPIError(error);
+    }
   }
 
   /**
-   * Get cover art URL for a song
+   * Get cover art for a song
+   */
+  static async getCoverArt(songId: string) {
+    try {
+      const response = await karaokeClient.getCoverArt({
+        songId,
+      });
+      return response;
+    } catch (error) {
+      throw handleAPIError(error);
+    }
+  }
+
+  /**
+   * Get cover art URL for a song (for legacy use with img tags)
    */
   static getCoverArtUrl(songId: string): string {
     return `${API_CONFIG.BASE_URL}/v1/songs/${songId}/cover-art`;

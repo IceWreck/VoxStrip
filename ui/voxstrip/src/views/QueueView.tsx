@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   PlayIcon, 
   PauseIcon, 
@@ -16,6 +16,7 @@ import StatusBadge from '../components/StatusBadge.js';
 export default function QueueView() {
   const { queue, audioPlayer } = useAppContext();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [coverArtUrls, setCoverArtUrls] = useState<Map<string, string>>(new Map());
 
   const handlePlayPause = () => {
     if (!audioPlayer.currentSong) {
@@ -62,6 +63,40 @@ export default function QueueView() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  // Load cover art for queue items
+  useEffect(() => {
+    let mounted = true;
+    
+    const loadCoverArts = async () => {
+      const newUrls = new Map<string, string>();
+      
+      for (const item of queue.items) {
+        if (!coverArtUrls.has(item.song.songId)) {
+          try {
+            const response = await VoxStripAPI.getCoverArt(item.song.songId);
+            const blob = new Blob([response.image], { type: 'image/jpeg' });
+            const url = URL.createObjectURL(blob);
+            newUrls.set(item.song.songId, url);
+          } catch (error) {
+            console.error(`Failed to load cover art for ${item.song.songId}:`, error);
+            // Will use fallback placeholder
+          }
+        }
+      }
+
+      if (newUrls.size > 0 && mounted) {
+        setCoverArtUrls(prev => new Map([...prev, ...newUrls]));
+      }
+    };
+
+    loadCoverArts();
+
+    // Cleanup function
+    return () => {
+      mounted = false;
+    };
+  }, [queue.items]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleDragStart = (index: number) => {
     setDraggedIndex(index);
   };
@@ -101,14 +136,14 @@ export default function QueueView() {
       </div>
 
       {/* Now Playing Section */}
-      {audioPlayer.currentSong && (
+      {queue.currentSong && (
         <div className="card preset-tonal-primary p-6 space-y-4">
           <div className="flex items-center gap-4">
             {/* Album Art */}
             <div className="relative">
               <img
-                src={VoxStripAPI.getCoverArtUrl(audioPlayer.currentSong.songId)}
-                alt={audioPlayer.currentSong.metadata?.title || 'Unknown Title'}
+                src={coverArtUrls.get(queue.currentSong.songId) || '/placeholder-album.png'}
+                alt={queue.currentSong.metadata?.title || 'Unknown Title'}
                 className="w-16 h-16 rounded-lg object-cover"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = '/placeholder-album.png';
@@ -119,13 +154,13 @@ export default function QueueView() {
             {/* Song Info */}
             <div className="flex-1">
               <h3 className="h4 font-bold">
-                {audioPlayer.currentSong.metadata?.title || 'Unknown Title'}
+                {queue.currentSong.metadata?.title || 'Unknown Title'}
               </h3>
               <p className="text-surface-600-400">
-                {audioPlayer.currentSong.metadata?.artist || 'Unknown Artist'}
+                {queue.currentSong.metadata?.artist || 'Unknown Artist'}
               </p>
               <div className="flex items-center gap-2 mt-1">
-                <StatusBadge status={audioPlayer.currentSong.processingStatus} showIcon={false} />
+                <StatusBadge status={queue.currentSong.processingStatus} showIcon={false} />
               </div>
             </div>
 
@@ -259,7 +294,7 @@ export default function QueueView() {
 
                     {/* Album Art */}
                     <img
-                      src={VoxStripAPI.getCoverArtUrl(queueItem.song.songId)}
+                      src={coverArtUrls.get(queueItem.song.songId) || '/placeholder-album.png'}
                       alt={queueItem.song.metadata?.title || 'Unknown Title'}
                       className="w-10 h-10 rounded object-cover"
                       onError={(e) => {

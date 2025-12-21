@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   PlayIcon, 
   PauseIcon, 
@@ -21,14 +21,54 @@ export default function PlayerView() {
   const [selectedVersion, setSelectedVersion] = useState<AudioVersionKey>('KARAOKE');
   const [repeat, setRepeat] = useState(false);
   const [shuffle, setShuffle] = useState(false);
+  const [coverArtUrl, setCoverArtUrl] = useState<string>('/placeholder-album.png');
+  const lastLoadedVersion = useRef<AudioVersionKey | null>(null);
 
   // Sync audio version with player
   useEffect(() => {
-    if (audioPlayer.currentSong) {
+    if (queue.currentSong && selectedVersion !== lastLoadedVersion.current) {
       // Load song with current version selection
-      audioPlayer.loadSong(audioPlayer.currentSong, selectedVersion);
+      audioPlayer.loadSong(queue.currentSong, selectedVersion);
+      lastLoadedVersion.current = selectedVersion;
     }
-  }, [selectedVersion, audioPlayer, audioPlayer.currentSong]);
+  }, [selectedVersion, queue.currentSong]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load cover art when current song changes
+  useEffect(() => {
+    let mounted = true;
+    
+    const loadCoverArt = async () => {
+      if (queue.currentSong) {
+        try {
+          const response = await VoxStripAPI.getCoverArt(queue.currentSong.songId);
+          if (mounted) {
+            const blob = new Blob([response.image], { type: 'image/jpeg' });
+            const url = URL.createObjectURL(blob);
+            setCoverArtUrl(url);
+          }
+        } catch (error) {
+          console.error('Failed to load cover art:', error);
+          if (mounted) {
+            setCoverArtUrl('/placeholder-album.png');
+          }
+        }
+      } else {
+        if (mounted) {
+          setCoverArtUrl('/placeholder-album.png');
+        }
+      }
+    };
+
+    loadCoverArt();
+
+    // Cleanup function
+    return () => {
+      mounted = false;
+      if (coverArtUrl !== '/placeholder-album.png') {
+        URL.revokeObjectURL(coverArtUrl);
+      }
+    };
+  }, [queue.currentSong]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle next song with repeat
   const handleNext = () => {
@@ -68,18 +108,29 @@ export default function PlayerView() {
     setSelectedVersion(version);
   };
 
-  const handleDownload = () => {
-    if (audioPlayer.currentSong) {
-      const url = VoxStripAPI.getDownloadUrl(
-        audioPlayer.currentSong.songId, 
-        selectedVersion.toLowerCase()
-      );
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${audioPlayer.currentSong.metadata?.title || 'unknown'}-${selectedVersion}.mp3`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+  const handleDownload = async () => {
+    if (queue.currentSong) {
+      try {
+        const response = await VoxStripAPI.downloadAudio({
+          songId: queue.currentSong.songId,
+          version: selectedVersion.toLowerCase() as 'original' | 'vocal' | 'instrumental' | 'karaoke',
+          format: 'mp3',
+          bitrate: 320
+        });
+
+        // Create blob and download
+        const audioBlob = new Blob([response.audio], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(audioBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = response.filename || `${queue.currentSong.metadata?.title || 'unknown'}-${selectedVersion}.mp3`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Download failed:', error);
+      }
     }
   };
 
@@ -117,7 +168,7 @@ export default function PlayerView() {
     return parsedLines;
   };
 
-  const currentSongLyrics = audioPlayer.currentSong?.metadata?.lyrics;
+  const currentSongLyrics = queue.currentSong?.metadata?.lyrics;
   const parsedLyrics = parseLyrics(currentSongLyrics);
 
   // Find current lyric line
@@ -137,15 +188,15 @@ export default function PlayerView() {
         </p>
       </div>
 
-      {audioPlayer.currentSong ? (
+      {queue.currentSong ? (
         <div className="grid lg:grid-cols-[1fr_1.5fr] gap-8">
           {/* Left Column - Album Art and Info */}
           <div className="space-y-6">
             {/* Album Art */}
             <div className="aspect-square rounded-lg overflow-hidden shadow-xl">
               <img
-                src={VoxStripAPI.getCoverArtUrl(audioPlayer.currentSong.songId)}
-                alt={audioPlayer.currentSong.metadata?.title || 'Unknown Title'}
+                src={coverArtUrl}
+                alt={queue.currentSong.metadata?.title || 'Unknown Title'}
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = '/placeholder-album.png';
@@ -156,16 +207,16 @@ export default function PlayerView() {
             {/* Song Info */}
             <div className="text-center space-y-2">
               <h2 className="h3 font-bold">
-                {audioPlayer.currentSong.metadata?.title || 'Unknown Title'}
+                {queue.currentSong.metadata?.title || 'Unknown Title'}
               </h2>
               <p className="text-lg text-surface-600-400">
-                {audioPlayer.currentSong.metadata?.artist || 'Unknown Artist'}
+                {queue.currentSong.metadata?.artist || 'Unknown Artist'}
               </p>
               <p className="text-surface-500-500">
-                {audioPlayer.currentSong.metadata?.album || 'Unknown Album'}
+                {queue.currentSong.metadata?.album || 'Unknown Album'}
               </p>
               <div className="flex justify-center">
-                <StatusBadge status={audioPlayer.currentSong.processingStatus} showIcon={false} />
+                <StatusBadge status={queue.currentSong.processingStatus} showIcon={false} />
               </div>
             </div>
 
@@ -176,7 +227,7 @@ export default function PlayerView() {
                 {Object.entries(AUDIO_VERSIONS).map(([key, version]) => (
                   <button
                     key={key}
-                    disabled={!audioPlayer.currentSong || audioPlayer.currentSong.processingStatus !== 2} // Only completed songs
+                    disabled={!queue.currentSong || queue.currentSong.processingStatus !== 3} // Only completed songs
                     className={`btn ${
                       selectedVersion === key ? 'preset-filled' : 'preset-outline'
                     }`}
