@@ -52,6 +52,8 @@ export const AUDIO_VERSIONS = {
 
 export type AudioVersionKey = keyof typeof AUDIO_VERSIONS;
 
+export const DEFAULT_AUDIO_VERSION: AudioVersionKey = 'INSTRUMENTAL';
+
 // Navigation views
 export const VIEWS = {
   SONGS: 'songs',

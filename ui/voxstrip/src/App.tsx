@@ -4,6 +4,7 @@ import { useQueue } from './hooks/useQueue.js';
 import { useAudioPlayer } from './hooks/useAudioPlayer.js';
 import { AppContext } from './router/context.js';
 import { useEffect, useRef } from 'react';
+import { DEFAULT_AUDIO_VERSION } from './config.js';
 
 function App() {
   const queue = useQueue();
@@ -16,7 +17,7 @@ function App() {
     if (currentSongId && currentSongId !== lastSyncedSongId.current) {
       lastSyncedSongId.current = currentSongId;
       // Load the current queue song in the default audio version
-      audioPlayer.loadSong(queue.currentSong!, 'ORIGINAL');
+      audioPlayer.loadSong(queue.currentSong!, DEFAULT_AUDIO_VERSION);
     }
   }, [queue.currentSong]); // eslint-disable-line react-hooks/exhaustive-deps
 

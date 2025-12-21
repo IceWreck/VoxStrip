@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Song } from '../api/client.js';
 import type { AudioVersionKey } from '../config.js';
-import { UI_CONFIG } from '../config.js';
+import { UI_CONFIG, DEFAULT_AUDIO_VERSION } from '../config.js';
 import { VoxStripAPI } from '../api/client.js';
 
 export interface AudioPlayerState {
@@ -41,7 +41,7 @@ export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
     volume: 1,
     isLoading: false,
     error: null,
-    currentVersion: 'ORIGINAL',
+    currentVersion: 'INSTRUMENTAL',
     playbackRate: 1,
     isMuted: false,
   });
@@ -186,7 +186,7 @@ export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
   }, [state.isMuted]);
 
   // Load a new song
-  const loadSong = useCallback(async (song: Song, version: AudioVersionKey = 'ORIGINAL') => {
+  const loadSong = useCallback(async (song: Song, version: AudioVersionKey = DEFAULT_AUDIO_VERSION) => {
     if (!audioRef.current) return;
 
     try {
