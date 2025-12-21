@@ -25,29 +25,22 @@ func newDemucsSeparator(tempDir string, demucsCommand string) *demucsSeparator {
 }
 
 // separateVocals separates vocals and instruments using Demucs
-func (d *demucsSeparator) separateVocals(ctx context.Context, inputPath string) (vocalPath, instrumentalPath string, err error) {
+func (d *demucsSeparator) separateVocals(ctx context.Context, songID, inputPath string) (vocalPath, instrumentalPath string, err error) {
 	slog.Debug("starting audio separation", "input", inputPath)
 
-	// Create output directory for this specific file
-	outputDir := filepath.Join(d.tempDir, "demucs_output", filepath.Base(inputPath))
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return "", "", fmt.Errorf("failed to create output directory: %w", err)
+	// Ensure temp directory exists
+	if err := os.MkdirAll(d.tempDir, 0755); err != nil {
+		return "", "", fmt.Errorf("failed to create temp directory: %w", err)
 	}
-
-	// Parse the demucs command to determine how to execute it
-	var cmdName string
-	var cmdArgs []string
 
 	// Split the command to handle cases like "uv run demucs"
 	parts := strings.Fields(d.demucsCommand)
-	if len(parts) > 0 {
-		cmdName = parts[0]
-		// Append the Demucs arguments at the end
-		cmdArgs = append(parts[1:], "-n", "htdemucs", "--mp3", "--mp3-bitrate", "320", "-o", outputDir, inputPath)
-	} else {
-		cmdName = "demucs"
-		cmdArgs = []string{"-n", "htdemucs", "--mp3", "--mp3-bitrate", "320", "-o", outputDir, inputPath}
+	if len(parts) == 0 {
+		parts = []string{"demucs"}
 	}
+
+	cmdName := parts[0]
+	cmdArgs := append(parts[1:], "-n", "htdemucs", "--two-stems", "vocals", "--mp3", "--mp3-bitrate", "192", "--filename", songID+"_{stem}.{ext}", "-o", d.tempDir, inputPath)
 
 	cmd := exec.CommandContext(ctx, cmdName, cmdArgs...)
 	var stdout, stderr strings.Builder
@@ -65,17 +58,12 @@ func (d *demucsSeparator) separateVocals(ctx context.Context, inputPath string) 
 	slog.Debug("demucs completed successfully", "stdout", stdout.String(), "stderr", stderr.String())
 
 	// Find the output files
-	// Demucs creates a subdirectory with the stem name
-	stemDir := filepath.Join(outputDir, "htdemucs")
-	if _, err := os.Stat(stemDir); os.IsNotExist(err) {
-		// Try alternative naming (sometimes demucs uses filename without extension)
-		baseName := strings.TrimSuffix(filepath.Base(inputPath), filepath.Ext(inputPath))
-		stemDir = filepath.Join(outputDir, baseName)
-	}
+	// With --filename "{songID}_{stem}.{ext}", files are directly in tempDir/htdemucs/
+	targetDir := filepath.Join(d.tempDir, "htdemucs")
 
-	// Check for vocal and instrumental files
-	vocalFile := filepath.Join(stemDir, "vocals.mp3")
-	instrumentalFile := filepath.Join(stemDir, "no_vocals.mp3")
+	// Check for vocal and instrumental files with songID prefix
+	vocalFile := filepath.Join(targetDir, songID+"_vocals.mp3")
+	instrumentalFile := filepath.Join(targetDir, songID+"_no_vocals.mp3")
 
 	// Verify files exist
 	if _, err := os.Stat(vocalFile); os.IsNotExist(err) {
