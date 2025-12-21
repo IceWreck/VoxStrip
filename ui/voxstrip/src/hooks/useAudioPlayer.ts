@@ -261,7 +261,7 @@ export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
         isPlaying: false 
       }));
     }
-  }, [versionKeyToEnum]);
+  }, []);
 
   // Seek forward
   const seekForward = useCallback(() => {
