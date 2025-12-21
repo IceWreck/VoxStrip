@@ -194,7 +194,7 @@ export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
       }));
 
       // Get download URL for specific version
-      const downloadUrl = VoxStripAPI.getDownloadUrl(song.songId, version.toLowerCase() as any);
+      const downloadUrl = VoxStripAPI.getDownloadUrl(song.songId, version as 'original' | 'vocal' | 'instrumental' | 'karaoke');
       audioRef.current.src = downloadUrl;
       
       // Wait for audio to load metadata

@@ -64,6 +64,11 @@ export type ViewKey = keyof typeof VIEWS;
 
 // Processing Status Badge Configuration
 export const STATUS_BADGE_CONFIG = {
+  PROCESSING_STATUS_UNSPECIFIED: {
+    preset: 'preset-tonal-surface',
+    text: 'Pending',
+    icon: 'Clock',
+  },
   PROCESSING_STATUS_PENDING: {
     preset: 'preset-tonal-surface',
     text: 'Pending',

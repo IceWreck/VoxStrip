@@ -18,14 +18,14 @@ interface StatusBadgeProps {
 
 export function StatusBadge({ status, className = '', showIcon = true }: StatusBadgeProps) {
   // Get the enum key name as a string
-  const statusKey = `PROCESSING_STATUS_${status === 0 ? 'PENDING' : status === 1 ? 'PROCESSING' : status === 2 ? 'COMPLETED' : status === 3 ? 'FAILED' : 'UNKNOWN'}`;
+  const statusKey = `PROCESSING_STATUS_${status === 0 ? 'UNSPECIFIED' : status === 1 ? 'PENDING' : status === 2 ? 'PROCESSING' : status === 3 ? 'COMPLETED' : status === 4 ? 'FAILED' : 'UNKNOWN'}`;
   const config = STATUS_BADGE_CONFIG[statusKey as keyof typeof STATUS_BADGE_CONFIG];
   
   if (!config) {
-    // Fallback for unknown statuses
+    // Fallback for unknown/unspecified statuses
     return (
       <span className={`badge preset-tonal-surface ${className}`}>
-        Unknown
+        {status === 0 ? 'Pending' : 'Unknown'}
       </span>
     );
   }

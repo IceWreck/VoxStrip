@@ -1,11 +1,11 @@
 import { createConnectTransport } from '@connectrpc/connect-web';
-import { createClient } from '@connectrpc/connect';
+import { createClient, ConnectError } from '@connectrpc/connect';
 import { KaraokeService } from '../proto/server_pb.js';
 import { API_CONFIG } from '../config.js';
 
 // Create transport for Connect RPC
 const transport = createConnectTransport({
-  baseUrl: `${API_CONFIG.BASE_URL}`,
+  baseUrl: API_CONFIG.BASE_URL,
   fetch: (input, init) => {
     return fetch(input, {
       ...init,
@@ -48,41 +48,54 @@ export class VoxStripAPI {
   } = {}) {
     const { pageSize, pageToken, statusFilter } = options;
     
-    const response = await karaokeClient.listSongs({
-      pageSize: pageSize || 20,
-      pageToken: pageToken || '',
-      statusFilter,
-    });
+    try {
+      const response = await karaokeClient.listSongs({
+        pageSize: pageSize || 20,
+        pageToken: pageToken || '',
+        statusFilter,
+      });
 
-    return response;
+      return response;
+    } catch (error) {
+      throw handleAPIError(error);
+    }
   }
 
   /**
    * Get a specific song by ID
    */
   static async getSong(songId: string) {
-    const response = await karaokeClient.getSong({
-      songId,
-    });
+    try {
+      const response = await karaokeClient.getSong({
+        songId,
+      });
 
-    return response.song;
+      return response.song;
+    } catch (error) {
+      throw handleAPIError(error);
+    }
   }
 
   /**
    * Delete a song by ID
    */
   static async deleteSong(songId: string) {
-    const response = await karaokeClient.deleteSong({
-      songId,
-    });
+    try {
+      const response = await karaokeClient.deleteSong({
+        songId,
+      });
 
-    return response;
+      return response;
+    } catch (error) {
+      throw handleAPIError(error);
+    }
   }
 
   /**
    * Import songs (will be implemented later)
    */
-  static async importSongs(songRequests: Array<{
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  static async importSongs(_songRequests: Array<{
     audio: File;
     title?: string;
     artist?: string;
@@ -99,17 +112,14 @@ export class VoxStripAPI {
    * Download audio file for a specific song and version
    */
   static getDownloadUrl(songId: string, version: 'original' | 'vocal' | 'instrumental' | 'karaoke'): string {
-    // Construct download URL based on API specification
-    const baseUrl = API_CONFIG.BASE_URL.replace(/\/$/, ''); // Remove trailing slash
-    return `${baseUrl}/v1/songs/${songId}/audio/${version}`;
+    return `${API_CONFIG.BASE_URL}/v1/songs/${songId}/audio/${version}`;
   }
 
   /**
    * Get cover art URL for a song
    */
   static getCoverArtUrl(songId: string): string {
-    const baseUrl = API_CONFIG.BASE_URL.replace(/\/$/, '');
-    return `${baseUrl}/v1/songs/${songId}/cover-art`;
+    return `${API_CONFIG.BASE_URL}/v1/songs/${songId}/cover-art`;
   }
 }
 
@@ -132,15 +142,15 @@ export class APIError extends Error {
 
 // Helper to extract error information from API responses
 export function handleAPIError(error: unknown): APIError {
-  if (error instanceof APIError) {
-    return error;
-  }
-
-  if (error instanceof Error) {
-    // Try to extract more detailed error information if available
-    if ('message' in error) {
-      return new APIError(error.message);
-    }
+  // Convert to ConnectError if it's not already one
+  const connectError = ConnectError.from(error);
+  
+  if (connectError instanceof ConnectError) {
+    return new APIError(
+      connectError.rawMessage || connectError.message,
+      connectError.code,
+      connectError.code
+    );
   }
 
   return new APIError('An unexpected error occurred');

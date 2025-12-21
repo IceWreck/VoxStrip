@@ -2,15 +2,12 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SearchIcon, PlusIcon, RefreshCwIcon } from 'lucide-react';
 import type { Song } from '../api/client.js';
 import { VoxStripAPI, handleAPIError } from '../api/client.js';
-import { useQueue } from '../hooks/useQueue.js';
+import { useAppContext } from '../router/context.js';
 import { UI_CONFIG } from '../config.js';
 import StatusBadge from '../components/StatusBadge.js';
 
-interface SongsViewProps {
-  queue: ReturnType<typeof useQueue>;
-}
-
-export default function SongsView({ queue }: SongsViewProps) {
+export default function SongsView() {
+  const { queue } = useAppContext();
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +20,7 @@ export default function SongsView({ queue }: SongsViewProps) {
   // Load songs
   const loadSongs = useCallback(async (refresh = false) => {
     try {
-      setLoading(true && !refresh);
+      setLoading(!refresh);
       setError(null);
       
       const response = await VoxStripAPI.listSongs({
@@ -189,9 +186,9 @@ export default function SongsView({ queue }: SongsViewProps) {
               </tr>
             </thead>
             <tbody>
-              {filteredSongs.map((song, index) => (
+              {filteredSongs.map((song) => (
                 <tr 
-                  key={`${song.songId}-${index}`} 
+                  key={song.songId} 
                   className="border-b border-surface-100-900 hover:bg-surface-100-900 transition-colors"
                 >
                   <td className="p-3">

@@ -9,17 +9,12 @@ import {
   Volume2Icon,
   VolumeXIcon
 } from 'lucide-react';
-import { useQueue } from '../hooks/useQueue.js';
-import { useAudioPlayer } from '../hooks/useAudioPlayer.js';
+import { useAppContext } from '../router/context.js';
 import { VoxStripAPI } from '../api/client.js';
 import StatusBadge from '../components/StatusBadge.js';
 
-interface QueueViewProps {
-  queue: ReturnType<typeof useQueue>;
-  audioPlayer: ReturnType<typeof useAudioPlayer>;
-}
-
-export default function QueueView({ queue, audioPlayer }: QueueViewProps) {
+export default function QueueView() {
+  const { queue, audioPlayer } = useAppContext();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   const handlePlayPause = () => {

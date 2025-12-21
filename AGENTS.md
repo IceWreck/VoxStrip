@@ -65,6 +65,12 @@ After significant code changes, format, lint and vet with:
 make check
 ```
 
+And for TS,
+
+```
+cd ui/voxstrip && npm run lint
+```
+
 Build with:
 
 ```

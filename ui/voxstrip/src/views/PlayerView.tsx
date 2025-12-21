@@ -10,20 +10,15 @@ import {
   ShuffleIcon,
   DownloadIcon
 } from 'lucide-react';
-import { useQueue } from '../hooks/useQueue.js';
-import { useAudioPlayer } from '../hooks/useAudioPlayer.js';
+import { useAppContext } from '../router/context.js';
 import { VoxStripAPI } from '../api/client.js';
 import { AUDIO_VERSIONS, type AudioVersionKey } from '../config.js';
 import StatusBadge from '../components/StatusBadge.js';
+import { Link } from '@tanstack/react-router';
 
-interface PlayerViewProps {
-  queue: ReturnType<typeof useQueue>;
-  audioPlayer: ReturnType<typeof useAudioPlayer>;
-  onNavigate?: (view: import('../config.js').ViewKey) => void;
-}
-
-export default function PlayerView({ queue, audioPlayer }: PlayerViewProps) {
-  const [selectedVersion, setSelectedVersion] = useState<AudioVersionKey>('ORIGINAL');
+export default function PlayerView() {
+  const { queue, audioPlayer } = useAppContext();
+  const [selectedVersion, setSelectedVersion] = useState<AudioVersionKey>('KARAOKE');
   const [repeat, setRepeat] = useState(false);
   const [shuffle, setShuffle] = useState(false);
 
@@ -33,7 +28,7 @@ export default function PlayerView({ queue, audioPlayer }: PlayerViewProps) {
       // Load song with current version selection
       audioPlayer.loadSong(audioPlayer.currentSong, selectedVersion);
     }
-  }, [selectedVersion, audioPlayer.currentSong]);
+  }, [selectedVersion, audioPlayer, audioPlayer.currentSong]);
 
   // Handle next song with repeat
   const handleNext = () => {
@@ -77,7 +72,7 @@ export default function PlayerView({ queue, audioPlayer }: PlayerViewProps) {
     if (audioPlayer.currentSong) {
       const url = VoxStripAPI.getDownloadUrl(
         audioPlayer.currentSong.songId, 
-        selectedVersion.toLowerCase() as any
+        selectedVersion.toLowerCase()
       );
       const link = document.createElement('a');
       link.href = url;
@@ -340,12 +335,12 @@ export default function PlayerView({ queue, audioPlayer }: PlayerViewProps) {
           <p className="text-surface-600-400 mb-4">
             Add songs to your queue to start playing
           </p>
-          <button 
-            onClick={() => {/* Navigate handled by parent */}}
+          <Link 
+            to="/"
             className="btn preset-filled"
           >
             Browse Songs
-          </button>
+          </Link>
         </div>
       )}
 
