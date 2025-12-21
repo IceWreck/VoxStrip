@@ -50,8 +50,6 @@ export default function PlayerView() {
   const currentSong = queue.currentSong;
   const currentSongId = currentSong?.songId ?? null;
   const [selectedVersion, setSelectedVersion] = useState<AudioVersionKey>(DEFAULT_AUDIO_VERSION);
-  const [repeat, setRepeat] = useState(false);
-  const [shuffle, setShuffle] = useState(false);
   const [coverArtUrl, setCoverArtUrl] = useState('/placeholder-album.png');
   const songIdRef = useRef<string | null>(null);
   const coverArtUrlRef = useRef<string | null>(null);
@@ -151,19 +149,7 @@ export default function PlayerView() {
   const handleNext = () => {
     if (queue.items.length === 0) return;
 
-    if (shuffle && queue.items.length > 1) {
-      const choices = queue.items
-        .map((_, index) => index)
-        .filter(index => index !== queue.currentIndex);
-      const nextIndex = choices[Math.floor(Math.random() * choices.length)];
-      queue.jumpToIndex(nextIndex);
-      return;
-    }
-
     if (queue.currentIndex === queue.items.length - 1) {
-      if (repeat) {
-        queue.jumpToIndex(0);
-      }
       return;
     }
 
@@ -205,7 +191,7 @@ export default function PlayerView() {
   };
 
   const canSkipBackward = queue.currentIndex > 0;
-  const canSkipForward = shuffle || repeat || queue.currentIndex < queue.items.length - 1;
+  const canSkipForward = queue.currentIndex < queue.items.length - 1;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -248,10 +234,6 @@ export default function PlayerView() {
           <div className="space-y-6">
             <PlayerControls
               audioPlayer={audioPlayer}
-              repeat={repeat}
-              shuffle={shuffle}
-              onToggleRepeat={() => setRepeat(prev => !prev)}
-              onToggleShuffle={() => setShuffle(prev => !prev)}
               onNext={handleNext}
               onPrevious={handlePrevious}
               onPlayPause={handlePlayPause}

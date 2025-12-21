@@ -2,8 +2,6 @@ import {
   DownloadIcon,
   PauseIcon,
   PlayIcon,
-  RepeatIcon,
-  ShuffleIcon,
   SkipBackIcon,
   SkipForwardIcon,
   Volume2Icon,
@@ -14,10 +12,6 @@ import { formatTime } from '../../utils/formatters.js';
 
 type PlayerControlsProps = {
   audioPlayer: AudioPlayerState & AudioPlayerActions;
-  repeat: boolean;
-  shuffle: boolean;
-  onToggleRepeat: () => void;
-  onToggleShuffle: () => void;
   onNext: () => void;
   onPrevious: () => void;
   onPlayPause: () => void;
@@ -28,10 +22,6 @@ type PlayerControlsProps = {
 
 export default function PlayerControls({
   audioPlayer,
-  repeat,
-  shuffle,
-  onToggleRepeat,
-  onToggleShuffle,
   onNext,
   onPrevious,
   onPlayPause,
@@ -69,14 +59,6 @@ export default function PlayerControls({
 
       <div className="flex items-center justify-center gap-4">
         <button
-          onClick={onToggleShuffle}
-          className={`btn preset-ghost ${shuffle ? 'text-primary-600' : ''}`}
-          aria-pressed={shuffle}
-        >
-          <ShuffleIcon size={20} />
-        </button>
-
-        <button
           onClick={onPrevious}
           disabled={!canSkipBackward}
           className="btn preset-outline"
@@ -97,14 +79,6 @@ export default function PlayerControls({
           className="btn preset-outline"
         >
           <SkipForwardIcon size={24} />
-        </button>
-
-        <button
-          onClick={onToggleRepeat}
-          className={`btn preset-ghost ${repeat ? 'text-primary-600' : ''}`}
-          aria-pressed={repeat}
-        >
-          <RepeatIcon size={20} />
         </button>
       </div>
 
