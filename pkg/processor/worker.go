@@ -117,7 +117,7 @@ func (w *worker) processSong(ctx context.Context, song *store.Song) error {
 	}
 
 	// Step 2: Separate audio
-	separator := newDemucsSeparator(w.config.TempDir, w.config.DemucsCommand)
+	separator := newDemucsSeparator(w.config.TempDir, w.config.DemucsCommand, w.config.DemucsModel)
 	vocalPath, instrumentalPath, err := separator.separateVocals(ctx, song.ID, originalPath)
 	if err != nil {
 		return fmt.Errorf("audio separation failed: %w", err)

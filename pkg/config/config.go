@@ -29,6 +29,7 @@ type AudioProcessingConfig struct {
 	PollInterval      time.Duration `env:"AUDIO_POLL_INTERVAL" envDefault:"5s"`
 	ProcessingTimeout time.Duration `env:"AUDIO_PROCESSING_TIMEOUT" envDefault:"20m"`
 	DemucsCommand     string        `env:"DEMUCS_COMMAND" envDefault:"uv run demucs"`
+	DemucsModel       string        `env:"DEMUCS_MODEL" envDefault:"htdemucs"`
 	TempDir           string        `env:"AUDIO_TEMP_DIR" envDefault:"./temp"`
 }
 

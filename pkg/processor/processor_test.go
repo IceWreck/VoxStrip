@@ -47,7 +47,7 @@ func TestDemucsSeparator(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	separator := newDemucsSeparator("demucs", t.TempDir())
+	separator := newDemucsSeparator("demucs", t.TempDir(), "htdemucs")
 	ctx := context.Background()
 
 	// Test with non-existent file

@@ -14,13 +14,15 @@ import (
 type demucsSeparator struct {
 	tempDir       string
 	demucsCommand string
+	model         string
 }
 
 // newDemucsSeparator creates a new Demucs-based audio separator
-func newDemucsSeparator(tempDir string, demucsCommand string) *demucsSeparator {
+func newDemucsSeparator(tempDir string, demucsCommand string, model string) *demucsSeparator {
 	return &demucsSeparator{
 		tempDir:       tempDir,
 		demucsCommand: demucsCommand,
+		model:         model,
 	}
 }
 
@@ -40,7 +42,7 @@ func (d *demucsSeparator) separateVocals(ctx context.Context, songID, inputPath 
 	}
 
 	cmdName := parts[0]
-	cmdArgs := append(parts[1:], "-n", "htdemucs", "--two-stems", "vocals", "--mp3", "--mp3-bitrate", "192", "--filename", songID+"_{stem}.{ext}", "-o", d.tempDir, inputPath)
+	cmdArgs := append(parts[1:], "-n", d.model, "--two-stems", "vocals", "--mp3", "--mp3-bitrate", "192", "--filename", songID+"_{stem}.{ext}", "-o", d.tempDir, inputPath)
 
 	cmd := exec.CommandContext(ctx, cmdName, cmdArgs...)
 	var stdout, stderr strings.Builder
@@ -58,8 +60,8 @@ func (d *demucsSeparator) separateVocals(ctx context.Context, songID, inputPath 
 	slog.Debug("demucs completed successfully", "stdout", stdout.String(), "stderr", stderr.String())
 
 	// Find the output files
-	// With --filename "{songID}_{stem}.{ext}", files are directly in tempDir/htdemucs/
-	targetDir := filepath.Join(d.tempDir, "htdemucs")
+	// With --filename "{songID}_{stem}.{ext}", files are directly in tempDir/{model}/
+	targetDir := filepath.Join(d.tempDir, d.model)
 
 	// Check for vocal and instrumental files with songID prefix
 	vocalFile := filepath.Join(targetDir, songID+"_vocals.mp3")
