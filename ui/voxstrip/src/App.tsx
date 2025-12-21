@@ -1,35 +1,57 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState } from 'react';
+import type { ViewKey } from './config.js';
+import Sidebar from './components/Sidebar.js';
+import SongsView from './views/SongsView.js';
+import QueueView from './views/QueueView.js';
+import PlayerView from './views/PlayerView.js';
+import ImportView from './views/ImportView.js';
+import { useQueue } from './hooks/useQueue.js';
+import { useAudioPlayer } from './hooks/useAudioPlayer.js';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [currentView, setCurrentView] = useState<ViewKey>('SONGS');
+  const queue = useQueue();
+  const audioPlayer = useAudioPlayer();
+
+  // Sync queue with audio player
+  const handleViewChange = (view: ViewKey) => {
+    setCurrentView(view);
+  };
+
+  // Render current view based on selection
+  const renderCurrentView = () => {
+    switch (currentView) {
+      case 'SONGS':
+        return <SongsView queue={queue} />;
+      case 'QUEUE':
+        return <QueueView queue={queue} audioPlayer={audioPlayer} />;
+      case 'PLAYER':
+        return <PlayerView queue={queue} audioPlayer={audioPlayer} />;
+      case 'IMPORT':
+        return <ImportView />;
+      default:
+        return <SongsView queue={queue} />;
+    }
+  };
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <div className="h-screen grid grid-cols-[auto_1fr] overflow-hidden">
+      {/* Sidebar Navigation */}
+      <Sidebar 
+        currentView={currentView} 
+        onViewChange={handleViewChange} 
+      />
+      
+      {/* Main Content Area */}
+      <main className="overflow-auto bg-surface-50-950">
+        <div className="container mx-auto p-4 md:p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto">
+            {renderCurrentView()}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
 }
 
-export default App
+export default App;
