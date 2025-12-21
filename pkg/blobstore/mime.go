@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"net/http"
+
+	"github.com/gabriel-vasile/mimetype"
 )
 
 // MimeToExt maps supported MIME types to file extensions.
@@ -49,7 +50,7 @@ func detectContentTypeAndExtension(data io.Reader) (string, string, io.Reader, e
 		return "", "", nil, fmt.Errorf("failed to read data for MIME detection: %w", err)
 	}
 
-	mimeType := http.DetectContentType(buffer[:n])
+	mimeType := mimetype.Detect(buffer[:n]).String()
 
 	ext, exists := MimeToExt[mimeType]
 	if !exists {
