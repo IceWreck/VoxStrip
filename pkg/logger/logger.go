@@ -8,7 +8,7 @@ import (
 // SetupLogging configures the global slog logger with sensible defaults.
 func SetupLogging() {
 	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: slog.LevelDebug,
 	})
 	slog.SetDefault(slog.New(handler))
 }

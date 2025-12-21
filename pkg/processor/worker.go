@@ -112,8 +112,7 @@ func (w *worker) processSong(ctx context.Context, song *store.Song) error {
 	defer os.Remove(originalPath) // Clean up temp file
 
 	// Step 1: Extract metadata
-	metadataExtractor := newTaglibMetadataExtractor()
-	if err := w.extractAndUpdateMetadata(ctx, song, originalPath, metadataExtractor); err != nil {
+	if err := w.extractAndUpdateMetadata(ctx, song, originalPath); err != nil {
 		return fmt.Errorf("metadata extraction failed: %w", err)
 	}
 
@@ -124,13 +123,57 @@ func (w *worker) processSong(ctx context.Context, song *store.Song) error {
 		return fmt.Errorf("audio separation failed: %w", err)
 	}
 
-	// Store processed files
+	// Step 3: Write metadata to separated files
+	if err := w.writeMetadataToSeparatedFiles(ctx, song, vocalPath, instrumentalPath); err != nil {
+		slog.Warn("failed to write metadata to separated files", "song_id", song.ID, "error", err)
+	}
+
+	// Step 4: Store processed files
 	if err := w.storeProcessedFile(ctx, song.ID, vocalPath, blobstore.FileTypeVocal); err != nil {
 		return fmt.Errorf("failed to store vocal file: %w", err)
 	}
 
 	if err := w.storeProcessedFile(ctx, song.ID, instrumentalPath, blobstore.FileTypeInstrumental); err != nil {
 		return fmt.Errorf("failed to store instrumental file: %w", err)
+	}
+
+	// Clean up temporary separated files
+	defer func() {
+		if err := os.Remove(vocalPath); err != nil && !os.IsNotExist(err) {
+			slog.Warn("failed to remove temporary vocal file", "file", vocalPath, "error", err)
+		}
+		if err := os.Remove(instrumentalPath); err != nil && !os.IsNotExist(err) {
+			slog.Warn("failed to remove temporary instrumental file", "file", instrumentalPath, "error", err)
+		}
+	}()
+
+	return nil
+}
+
+// writeMetadataToSeparatedFiles writes metadata and cover art to the separated audio files
+func (w *worker) writeMetadataToSeparatedFiles(ctx context.Context, song *store.Song, vocalPath, instrumentalPath string) error {
+	metadataExtractor := newTaglibMetadataExtractor()
+
+	// Get cover art for metadata writing
+	var coverArt []byte
+	if exists, err := w.blobStore.Exists(ctx, song.ID, blobstore.FileTypeCoverArt); err == nil && exists {
+		if reader, _, err := w.blobStore.Get(ctx, song.ID, blobstore.FileTypeCoverArt); err == nil {
+			defer reader.Close()
+			coverBytes := new(bytes.Buffer)
+			if _, err := io.Copy(coverBytes, reader); err == nil {
+				coverArt = coverBytes.Bytes()
+			}
+		}
+	}
+
+	// Write metadata to vocal file
+	if err := metadataExtractor.writeMetadata(ctx, vocalPath, &song.Metadata, coverArt, "vocals"); err != nil {
+		slog.Warn("failed to write metadata to vocal file", "song_id", song.ID, "error", err)
+	}
+
+	// Write metadata to instrumental file
+	if err := metadataExtractor.writeMetadata(ctx, instrumentalPath, &song.Metadata, coverArt, "instrumental"); err != nil {
+		slog.Warn("failed to write metadata to instrumental file", "song_id", song.ID, "error", err)
 	}
 
 	return nil
@@ -178,7 +221,8 @@ func (w *worker) downloadOriginalFile(ctx context.Context, songID string) (strin
 }
 
 // extractAndUpdateMetadata extracts metadata and cover art, updates the song if fields are empty
-func (w *worker) extractAndUpdateMetadata(ctx context.Context, song *store.Song, audioPath string, metadataExtractor *taglibMetadataExtractor) error {
+func (w *worker) extractAndUpdateMetadata(ctx context.Context, song *store.Song, audioPath string) error {
+	metadataExtractor := newTaglibMetadataExtractor()
 	metadata, duration, coverArt, err := metadataExtractor.extractMetadata(ctx, audioPath)
 	if err != nil {
 		return err

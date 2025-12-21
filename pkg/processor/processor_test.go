@@ -9,6 +9,7 @@ import (
 
 	"github.com/IceWreck/VoxStrip/pkg/blobstore"
 	"github.com/IceWreck/VoxStrip/pkg/config"
+	"github.com/IceWreck/VoxStrip/pkg/store"
 	"github.com/IceWreck/VoxStrip/pkg/store/inmemory"
 )
 
@@ -98,5 +99,43 @@ func TestProcessorIntegration(t *testing.T) {
 	err = processor.Start(ctx)
 	if err != nil {
 		t.Errorf("processor start failed: %v", err)
+	}
+}
+
+func TestMetadataWriter(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	// Create a temporary test file
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.mp3")
+
+	// Create a minimal MP3 file for testing
+	file, err := os.Create(testFile)
+	if err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+	file.Close()
+
+	extractor := newTaglibMetadataExtractor()
+	ctx := context.Background()
+
+	metadata := &store.Metadata{
+		Title:       "Test Song",
+		Artist:      "Test Artist",
+		Album:       "Test Album",
+		AlbumArtist: "Test Album Artist",
+		Genre:       "Test Genre",
+		Lyrics:      "Test lyrics",
+	}
+	coverArt := []byte("fake cover art data")
+
+	// Test metadata writing - this will likely fail with invalid MP3 but tests the integration
+	err = extractor.writeMetadata(ctx, testFile, metadata, coverArt, "vocals")
+
+	// We expect this to fail with an invalid file, but the function should not panic
+	if err == nil {
+		t.Log("Unexpected success with invalid MP3 file")
 	}
 }
