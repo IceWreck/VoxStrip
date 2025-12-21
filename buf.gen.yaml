@@ -6,3 +6,7 @@ plugins:
   - local: protoc-gen-connect-go
     out: gen
     opt: paths=source_relative
+  - local: ui/voxstrip/node_modules/.bin/protoc-gen-es
+    out: ui/voxstrip/src
+    include_imports: true
+    opt: target=ts
