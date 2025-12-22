@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Avatar, Slider } from '@skeletonlabs/skeleton-react';
+import { Avatar, Slider, SegmentedControl } from '@skeletonlabs/skeleton-react';
 import {
   PlayIcon,
   PauseIcon,
@@ -8,7 +8,7 @@ import {
   SkipForwardIcon,
   Volume2Icon,
   VolumeXIcon,
-  DownloadIcon
+  ListIcon
 } from 'lucide-react';
 import { VoxStripAPI } from '../api/client.js';
 import { useAppContext } from '../router/context.js';
@@ -17,10 +17,8 @@ import {
   DEFAULT_AUDIO_VERSION,
   type AudioVersionKey,
   getAudioVersionKeys,
-  versionKeyToEnum,
 } from '../config.js';
 import { isProcessingComplete } from '../utils/statusHelpers.js';
-import { AudioFormat } from '../proto/server_pb.js';
 
 type LyricLine = {
   time: number;
@@ -61,13 +59,16 @@ export default function PlayerView() {
   const songIdRef = useRef<string | null>(null);
   const coverArtUrlRef = useRef<string | null>(null);
 
+  /* eslint-disable react-hooks/rules-of-hooks */
   useEffect(() => {
     if (currentSongId !== songIdRef.current) {
       songIdRef.current = currentSongId;
       setSelectedVersion(DEFAULT_AUDIO_VERSION);
     }
   }, [currentSongId]);
+  /* eslint-enable react-hooks/rules-of-hooks */
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     if (!currentSong) {
       if (coverArtUrlRef.current) {
@@ -109,6 +110,7 @@ export default function PlayerView() {
       mounted = false;
     };
   }, [currentSong]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
     const song = currentSong;
@@ -166,36 +168,6 @@ export default function PlayerView() {
   };
 
   // handleSeek is no longer needed since we use Slider's onValueChange
-
-  const handleDownload = async () => {
-    if (!currentSong) return;
-
-    try {
-      const versionEnum = versionKeyToEnum(selectedVersion);
-      if (versionEnum === null) {
-        throw new Error('Unsupported audio version');
-      }
-
-      const response = await VoxStripAPI.downloadAudio({
-        songId: currentSong.songId,
-        version: versionEnum,
-        format: AudioFormat.MP3,
-        bitrate: 320,
-      });
-
-        const audioBlob = new Blob([new Uint8Array(response.audio)], { type: 'audio/mpeg' });
-      const url = URL.createObjectURL(audioBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = response.filename || `${currentSong.metadata?.title || 'unknown'}-${selectedVersion}.mp3`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Download failed:', error);
-    }
-  };
 
   const canSkipBackward = queue.currentIndex > 0;
   const canSkipForward = queue.currentIndex < queue.items.length - 1;
@@ -340,24 +312,25 @@ export default function PlayerView() {
               </div>
             </div>
 
-            {/* Center: Audio Version Selection - Takes available space */}
+            {/* Center: Audio Version Selection - Using Skeleton SegmentedControl */}
             <div className="flex-1 flex justify-center lg:px-4">
-              <div className="flex gap-1 sm:gap-2">
-                {getAudioVersionKeys().map((key) => (
-                  <button
-                    key={key}
-                    onClick={() => handleVersionChange(key)}
-                    disabled={!isProcessingComplete(currentSong.processingStatus)}
-                    className={`btn text-xs sm:text-sm ${
-                      selectedVersion === key
-                        ? 'preset-filled'
-                        : 'preset-outline'
-                    }`}
-                  >
-                    {AUDIO_VERSIONS[key].label}
-                  </button>
-                ))}
-              </div>
+              <SegmentedControl
+                value={selectedVersion}
+                onValueChange={(details) => handleVersionChange(details.value as AudioVersionKey)}
+                disabled={!isProcessingComplete(currentSong.processingStatus)}
+              >
+                <SegmentedControl.Control className="w-full max-w-xs">
+                  <SegmentedControl.Indicator />
+                  {getAudioVersionKeys().map((key) => (
+                    <SegmentedControl.Item key={key} value={key}>
+                      <SegmentedControl.ItemText className="text-xs sm:text-sm">
+                        {AUDIO_VERSIONS[key].label}
+                      </SegmentedControl.ItemText>
+                      <SegmentedControl.ItemHiddenInput />
+                    </SegmentedControl.Item>
+                  ))}
+                </SegmentedControl.Control>
+              </SegmentedControl>
             </div>
 
             {/* Right Side: Volume and Additional Controls */}
@@ -389,19 +362,10 @@ export default function PlayerView() {
                 </div>
               </div>
 
-              {/* Queue Link */}
-              <Link to="/queue" className="btn btn-icon preset-tonal">
-                <SkipBackIcon className="w-4 h-4" />
+              {/* Queue Button */}
+              <Link to="/queue" className="btn btn-icon preset-tonal" title="View Queue">
+                <ListIcon className="w-4 h-4" />
               </Link>
-
-              {/* Download Button */}
-              <button
-                onClick={handleDownload}
-                className="btn btn-icon preset-outline hidden sm:flex items-center gap-2"
-              >
-                <DownloadIcon className="w-4 h-4" />
-                <span className="hidden lg:inline">Download</span>
-              </button>
             </div>
           </div>
         </div>
