@@ -347,10 +347,6 @@ export default function PlayerView() {
 
             {/* Right Side: Volume and Additional Controls */}
             <div className="flex items-center justify-end gap-3 flex-shrink-0">
-              {/* Status Badge */}
-              <span className="badge preset-tonal-surface text-xs hidden lg:flex">
-                {isProcessingComplete(currentSong.processingStatus) ? 'Ready' : 'Processing'}
-              </span>
 
               {/* Volume Control */}
               <div className="flex items-center gap-2">
