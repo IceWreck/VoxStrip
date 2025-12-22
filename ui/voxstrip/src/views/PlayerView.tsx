@@ -324,13 +324,14 @@ export default function PlayerView() {
             </div>
 
             {/* Center: Audio Version Selection - Using Skeleton SegmentedControl */}
-            <div className="flex-1 flex justify-center lg:px-4">
+            <div className="flex-1 flex justify-center lg:px-4 min-w-0">
               <SegmentedControl
                 value={selectedVersion}
                 onValueChange={(details) => handleVersionChange(details.value as AudioVersionKey)}
                 disabled={!isProcessingComplete(currentSong.processingStatus)}
+                className="w-full"
               >
-                <SegmentedControl.Control className="w-full max-w-xs">
+                <SegmentedControl.Control>
                   <SegmentedControl.Indicator />
                   {getAudioVersionKeys().map((key) => (
                     <SegmentedControl.Item key={key} value={key}>
