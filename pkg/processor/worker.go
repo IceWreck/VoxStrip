@@ -123,18 +123,29 @@ func (w *worker) processSong(ctx context.Context, song *store.Song) error {
 		return fmt.Errorf("audio separation failed: %w", err)
 	}
 
-	// Step 3: Write metadata to separated files
-	if err := w.writeMetadataToSeparatedFiles(ctx, song, vocalPath, instrumentalPath); err != nil {
+	// Step 3: Create karaoke version by mixing vocals (reduced volume) and instrumentals
+	mixer := newKaraokeMixer(w.config.TempDir)
+	karaokePath, err := mixer.mixKaraoke(ctx, song.ID, vocalPath, instrumentalPath)
+	if err != nil {
+		return fmt.Errorf("karaoke mixing failed: %w", err)
+	}
+
+	// Step 4: Write metadata to separated files
+	if err := w.writeMetadataToSeparatedFiles(ctx, song, vocalPath, instrumentalPath, karaokePath); err != nil {
 		slog.Warn("failed to write metadata to separated files", "song_id", song.ID, "error", err)
 	}
 
-	// Step 4: Store processed files
+	// Step 5: Store processed files
 	if err := w.storeProcessedFile(ctx, song.ID, vocalPath, blobstore.FileTypeVocal); err != nil {
 		return fmt.Errorf("failed to store vocal file: %w", err)
 	}
 
 	if err := w.storeProcessedFile(ctx, song.ID, instrumentalPath, blobstore.FileTypeInstrumental); err != nil {
 		return fmt.Errorf("failed to store instrumental file: %w", err)
+	}
+
+	if err := w.storeProcessedFile(ctx, song.ID, karaokePath, blobstore.FileTypeKaraoke); err != nil {
+		return fmt.Errorf("failed to store karaoke file: %w", err)
 	}
 
 	// Clean up temporary separated files
@@ -145,13 +156,16 @@ func (w *worker) processSong(ctx context.Context, song *store.Song) error {
 		if err := os.Remove(instrumentalPath); err != nil && !os.IsNotExist(err) {
 			slog.Warn("failed to remove temporary instrumental file", "file", instrumentalPath, "error", err)
 		}
+		if err := os.Remove(karaokePath); err != nil && !os.IsNotExist(err) {
+			slog.Warn("failed to remove temporary karaoke file", "file", karaokePath, "error", err)
+		}
 	}()
 
 	return nil
 }
 
 // writeMetadataToSeparatedFiles writes metadata and cover art to the separated audio files
-func (w *worker) writeMetadataToSeparatedFiles(ctx context.Context, song *store.Song, vocalPath, instrumentalPath string) error {
+func (w *worker) writeMetadataToSeparatedFiles(ctx context.Context, song *store.Song, vocalPath, instrumentalPath, karaokePath string) error {
 	metadataExtractor := newTaglibMetadataExtractor()
 
 	// Get cover art for metadata writing
@@ -174,6 +188,11 @@ func (w *worker) writeMetadataToSeparatedFiles(ctx context.Context, song *store.
 	// Write metadata to instrumental file
 	if err := metadataExtractor.writeMetadata(ctx, instrumentalPath, &song.Metadata, coverArt, "instrumental"); err != nil {
 		slog.Warn("failed to write metadata to instrumental file", "song_id", song.ID, "error", err)
+	}
+
+	// Write metadata to karaoke file
+	if err := metadataExtractor.writeMetadata(ctx, karaokePath, &song.Metadata, coverArt, "karaoke"); err != nil {
+		slog.Warn("failed to write metadata to karaoke file", "song_id", song.ID, "error", err)
 	}
 
 	return nil

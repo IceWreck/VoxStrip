@@ -36,3 +36,6 @@ tools:
 	go install golang.org/x/tools/cmd/goimports@latest
 
 check: fmt vet
+
+ui-dev:
+	cd ui/voxstrip && npm run dev

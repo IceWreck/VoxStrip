@@ -21,7 +21,7 @@ func NewFileSystemStore(basePath string) (*FileSystemStore, error) {
 	}
 
 	// Create subdirectories for each file type
-	for _, fileType := range []FileType{FileTypeOriginal, FileTypeVocal, FileTypeInstrumental, FileTypeCoverArt} {
+	for _, fileType := range []FileType{FileTypeOriginal, FileTypeVocal, FileTypeInstrumental, FileTypeKaraoke, FileTypeCoverArt} {
 		dir := filepath.Join(basePath, string(fileType))
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create directory for %s: %w", fileType, err)
@@ -101,7 +101,7 @@ func (fs *FileSystemStore) Get(ctx context.Context, songID string, fileType File
 func (fs *FileSystemStore) Delete(ctx context.Context, songID string) error {
 	var errors []error
 
-	for _, fileType := range []FileType{FileTypeOriginal, FileTypeVocal, FileTypeInstrumental, FileTypeCoverArt} {
+	for _, fileType := range []FileType{FileTypeOriginal, FileTypeVocal, FileTypeInstrumental, FileTypeKaraoke, FileTypeCoverArt} {
 		dir := filepath.Join(fs.basePath, string(fileType))
 
 		pattern := filepath.Join(dir, songID+"*")

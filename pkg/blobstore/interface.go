@@ -26,6 +26,7 @@ const (
 	FileTypeOriginal     FileType = "original"     // Uploaded audio files
 	FileTypeVocal        FileType = "vocal"        // Separated vocals
 	FileTypeInstrumental FileType = "instrumental" // Separated instruments
+	FileTypeKaraoke      FileType = "karaoke"      // Mixed karaoke (instrumental + lowered vocals)
 	FileTypeCoverArt     FileType = "cover_art"    // Cover art images
 )
 

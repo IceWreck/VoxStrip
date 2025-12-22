@@ -347,8 +347,7 @@ func (s *Service) DownloadAudio(ctx context.Context, req *connect.Request[voxstr
 	case voxstripv1.AudioVersion_AUDIO_VERSION_INSTRUMENTAL:
 		fileType = blobstore.FileTypeInstrumental
 	case voxstripv1.AudioVersion_AUDIO_VERSION_KARAOKE:
-		// TODO: Implement karaoke mixing on-demand
-		return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("karaoke version not yet implemented"))
+		fileType = blobstore.FileTypeKaraoke
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid audio version"))
 	}
