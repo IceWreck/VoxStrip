@@ -8,8 +8,9 @@ import StatusBadge from '../components/StatusBadge.js';
 import { isProcessingComplete } from '../utils/statusHelpers.js';
 import { toaster } from '../toaster.js';
 import { VoxStripAPI } from '../api/client.js';
-import { Dialog, Portal, Pagination } from '@skeletonlabs/skeleton-react';
-import { useState, useMemo } from 'react';
+import { Dialog, Portal } from '@skeletonlabs/skeleton-react';
+import { useReactTable, getCoreRowModel, getPaginationRowModel, flexRender, type ColumnDef, type PaginationState } from '@tanstack/react-table';
+import { useState, useMemo, useCallback } from 'react';
 
 export default function SongsView() {
   const { queue } = useAppContext();
@@ -29,17 +30,13 @@ export default function SongsView() {
   } = useSongsLibrary();
 
   const [songToDelete, setSongToDelete] = useState<Song | null>(null);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<number>(UI_CONFIG.DEFAULT_PAGE_SIZE);
-
-  const paginatedSongs = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    const end = start + pageSize;
-    return filteredSongs.slice(start, end);
-  }, [filteredSongs, page, pageSize]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: UI_CONFIG.DEFAULT_PAGE_SIZE,
+  });
 
   // Add song to queue
-  const handleAddToQueue = (song: Song) => {
+  const handleAddToQueue = useCallback((song: Song) => {
     queue.addToQueue(song);
 
     // Show success toast
@@ -47,7 +44,7 @@ export default function SongsView() {
       title: "Added to Queue",
       description: `"${song.metadata?.title}" by ${song.metadata?.artist || 'Unknown Artist'}`
     });
-  };
+  }, [queue]);
 
   const handleDelete = async () => {
     if (!songToDelete) return;
@@ -68,6 +65,65 @@ export default function SongsView() {
       setSongToDelete(null);
     }
   };
+
+  const columns = useMemo<ColumnDef<Song>[]>(() => [
+    {
+      accessorKey: 'metadata.title',
+      header: 'Title',
+      cell: (info) => info.getValue() as string ?? 'Unknown Title',
+    },
+    {
+      accessorKey: 'metadata.artist',
+      header: 'Artist',
+      cell: (info) => info.getValue() as string ?? 'Unknown Artist',
+    },
+    {
+      accessorKey: 'metadata.album',
+      header: 'Album',
+      cell: (info) => info.getValue() as string ?? 'Unknown Album',
+    },
+    {
+      accessorKey: 'durationMs',
+      header: 'Duration',
+      cell: (info) => formatDuration(Number(info.getValue())),
+    },
+    {
+      header: 'Status',
+      cell: ({ row }) => <StatusBadge status={row.original.processingStatus} showIcon={false} />,
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={() => handleAddToQueue(row.original)}
+            disabled={!isProcessingComplete(row.original.processingStatus)}
+            className="btn preset-outline flex items-center gap-1"
+          >
+            <PlusIcon size={14} />
+            Add
+          </button>
+          <button
+            onClick={() => setSongToDelete(row.original)}
+            className="btn-icon preset-tonal"
+            title="Delete song"
+          >
+            <Trash2Icon size={14} />
+          </button>
+        </div>
+      ),
+    },
+  ], [handleAddToQueue]);
+
+  const table = useReactTable({
+    data: filteredSongs,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    onPaginationChange: setPagination,
+    state: { pagination },
+  });
 
   return (
     <div className="space-y-6">
@@ -107,24 +163,6 @@ export default function SongsView() {
             />
           </div>
         </label>
-        <label>
-          <span className="sr-only">Page size</span>
-          <select
-            value={String(pageSize)}
-            onChange={(e) => {
-              const newSize = Number(e.target.value);
-              setPageSize(newSize);
-              setPage(1);
-            }}
-            className="select"
-          >
-            {UI_CONFIG.PAGE_SIZE_OPTIONS.map(size => (
-              <option key={size} value={String(size)}>
-                {size} per page
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
 
       {/* Error State */}
@@ -151,93 +189,57 @@ export default function SongsView() {
             </div>
           ))}
         </div>
-      ) : (
-        /* Songs Table */
-        <div className="table-wrap overflow-x-auto">
-          <table className="table w-full">
-            <thead>
-              <tr className="border-b border-surface-200-800">
-                <th className="text-left p-3 font-medium">Title</th>
-                <th className="text-left p-3 font-medium">Artist</th>
-                <th className="text-left p-3 font-medium">Album</th>
-                <th className="text-left p-3 font-medium">Duration</th>
-                <th className="text-left p-3 font-medium">Status</th>
-                <th className="text-right p-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedSongs.map((song) => (
-                <tr 
-                  key={song.songId} 
-                  className="border-b border-surface-100-900 hover:bg-surface-100-900 transition-colors"
-                >
-                  <td className="p-3">
-                    <div className="font-medium truncate max-w-xs">
-                      {song.metadata?.title || 'Unknown Title'}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <div className="text-surface-600-400 truncate max-w-xs">
-                      {song.metadata?.artist || 'Unknown Artist'}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <div className="text-surface-600-400 truncate max-w-xs">
-                      {song.metadata?.album || 'Unknown Album'}
-                    </div>
-                  </td>
-                   <td className="p-3">
-                     <div className="text-surface-600-400">
-                       {formatDuration(Number(song.durationMs))}
-                     </div>
-                   </td>
-                   <td className="p-3">
-                     <StatusBadge status={song.processingStatus} showIcon={false} />
-                   </td>
-                   <td className="p-3 text-right">
-                       <div className="flex items-center justify-end gap-1">
-                         <button
-                           onClick={() => handleAddToQueue(song)}
-                           disabled={!isProcessingComplete(song.processingStatus)}
-                           className="btn preset-outline flex items-center gap-1"
-                         >
-                           <PlusIcon size={14} />
-                           Add
-                         </button>
-                         <button
-                           onClick={() => setSongToDelete(song)}
-                           className="btn-icon preset-tonal"
-                           title="Delete song"
-                         >
-                           <Trash2Icon size={14} />
-                         </button>
-                       </div>
-                   </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          
-          {paginatedSongs.length === 0 && !loading && (
-            <div className="text-center py-12">
-              <div className="text-surface-400-600 mb-2">
-                {searchTerm ? 'No songs found matching your search' : 'No songs in your library'}
-              </div>
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="btn preset-outline"
-                >
-                  Clear search
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+       ) : (
+         /* Songs Table */
+         <div className="table-wrap overflow-x-auto">
+           <table className="table w-full">
+             <thead>
+               {table.getHeaderGroups().map((headerGroup) => (
+                 <tr key={headerGroup.id} className="border-b border-surface-200-800">
+                   {headerGroup.headers.map((header) => (
+                     <th key={header.id} className="text-left p-3 font-medium">
+                       {flexRender(header.column.columnDef.header, header.getContext())}
+                     </th>
+                   ))}
+                 </tr>
+               ))}
+             </thead>
+             <tbody>
+               {table.getRowModel().rows.map((row) => (
+                 <tr
+                   key={row.id}
+                   className="border-b border-surface-100-900 hover:bg-surface-100-900 transition-colors"
+                 >
+                   {row.getVisibleCells().map((cell) => (
+                     <td key={cell.id} className="p-3">
+                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                     </td>
+                   ))}
+                 </tr>
+               ))}
+             </tbody>
+           </table>
 
-      {/* Load More (for server-side pagination) */}
-      {!loading && hasMore && (
+           {table.getRowModel().rows.length === 0 && !loading && (
+             <div className="text-center py-12">
+               <div className="text-surface-400-600 mb-2">
+                 {searchTerm ? 'No songs found matching your search' : 'No songs in your library'}
+               </div>
+               {searchTerm && (
+                 <button
+                   onClick={() => setSearchTerm('')}
+                   className="btn preset-outline"
+                 >
+                   Clear search
+                 </button>
+               )}
+             </div>
+           )}
+         </div>
+       )}
+
+      {/* Load More (for server-side pagination) - only show on last page */}
+      {!loading && hasMore && table.getState().pagination.pageIndex === table.getPageCount() - 1 && (
         <div className="text-center py-4">
           <button
             onClick={loadMore}
@@ -256,43 +258,69 @@ export default function SongsView() {
       {filteredSongs.length > 0 && (
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
           <span className="text-sm text-surface-600-400">
-            Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, filteredSongs.length)} of {filteredSongs.length} entries
+            Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
+            {Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, filteredSongs.length)} of{' '}
+            {filteredSongs.length} entries
             {totalSize > filteredSongs.length && (
               <span className="ml-2 opacity-60">
                 ({totalSize} total in library)
               </span>
             )}
           </span>
-          {filteredSongs.length > pageSize && (
-            <Pagination
-              count={filteredSongs.length}
-              pageSize={pageSize}
-              page={page}
-              onPageChange={(details) => setPage(details.page)}
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => table.firstPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="btn-icon preset-outline"
+              title="First page"
             >
-              <Pagination.PrevTrigger>
-                <ChevronLeftIcon className="w-4 h-4" />
-              </Pagination.PrevTrigger>
-              <Pagination.Context>
-                {(pagination) =>
-                  pagination.pages.map((pageItem, index) =>
-                    pageItem.type === 'page' ? (
-                      <Pagination.Item key={pageItem.value} type="page" value={pageItem.value}>
-                        {pageItem.value}
-                      </Pagination.Item>
-                    ) : (
-                      <Pagination.Ellipsis key={index} index={index}>
-                        ...
-                      </Pagination.Ellipsis>
-                    ),
-                  )
-                }
-              </Pagination.Context>
-              <Pagination.NextTrigger>
-                <ChevronRightIcon className="w-4 h-4" />
-              </Pagination.NextTrigger>
-            </Pagination>
-          )}
+              <ChevronLeftIcon className="w-4 h-4" />
+              <ChevronLeftIcon className="w-4 h-4 -ml-3" />
+            </button>
+            <button
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="btn-icon preset-outline"
+              title="Previous page"
+            >
+              <ChevronLeftIcon className="w-4 h-4" />
+            </button>
+            <span className="text-sm px-2">
+              Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+            </span>
+            <button
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="btn-icon preset-outline"
+              title="Next page"
+            >
+              <ChevronRightIcon className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => table.lastPage()}
+              disabled={!table.getCanNextPage()}
+              className="btn-icon preset-outline"
+              title="Last page"
+            >
+              <ChevronRightIcon className="w-4 h-4" />
+              <ChevronRightIcon className="w-4 h-4 -ml-3" />
+            </button>
+            <label>
+              <span className="sr-only">Page size</span>
+              <select
+                value={String(table.getState().pagination.pageSize)}
+                onChange={(e) => table.setPageSize(Number(e.target.value))}
+                className="select ml-4"
+              >
+                {UI_CONFIG.PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={String(size)}>
+                    {size} per page
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
       )}
 

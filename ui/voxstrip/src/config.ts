@@ -13,17 +13,9 @@ export const UI_CONFIG = {
   // Pagination
   DEFAULT_PAGE_SIZE: 10,
   PAGE_SIZE_OPTIONS: [10, 50, 100, 500],
-  
-  // Search
-  SEARCH_DEBOUNCE_MS: 300,
-  
+
   // Audio
-  AUDIO_VOLUME_STEP: 0.1,
-  AUDIO_SEEK_STEP: 5, // seconds
-  
-  // File uploads
-  MAX_FILE_SIZE_MB: 100,
-  SUPPORTED_AUDIO_FORMATS: ['mp3', 'wav', 'flac', 'aac', 'ogg'],
+  AUDIO_SEEK_STEP: 5,
 } as const;
 
 // Re-export audio version utilities from central module
