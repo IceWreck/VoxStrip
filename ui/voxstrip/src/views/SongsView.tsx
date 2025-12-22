@@ -1,6 +1,6 @@
 import type { Song } from '../api/client.js';
 import { formatDuration } from '../utils/formatters.js';
-import { SearchIcon, PlusIcon, RefreshCwIcon, Trash2Icon, XIcon } from 'lucide-react';
+import { SearchIcon, PlusIcon, RefreshCwIcon, Trash2Icon, XIcon, ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
 import { useSongsLibrary } from '../hooks/useSongsLibrary.js';
 import { useAppContext } from '../router/context.js';
 import { UI_CONFIG } from '../config.js';
@@ -8,8 +8,8 @@ import StatusBadge from '../components/StatusBadge.js';
 import { isProcessingComplete } from '../utils/statusHelpers.js';
 import { toaster } from '../toaster.js';
 import { VoxStripAPI } from '../api/client.js';
-import { Dialog, Portal } from '@skeletonlabs/skeleton-react';
-import { useState } from 'react';
+import { Dialog, Portal, Pagination } from '@skeletonlabs/skeleton-react';
+import { useState, useMemo } from 'react';
 
 export default function SongsView() {
   const { queue } = useAppContext();
@@ -22,8 +22,6 @@ export default function SongsView() {
     searchTerm,
     setSearchTerm,
     filteredSongs,
-    pageSize,
-    setPageSize,
     loadMore,
     hasMore,
     refresh,
@@ -31,6 +29,14 @@ export default function SongsView() {
   } = useSongsLibrary();
 
   const [songToDelete, setSongToDelete] = useState<Song | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(UI_CONFIG.DEFAULT_PAGE_SIZE);
+
+  const paginatedSongs = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+    return filteredSongs.slice(start, end);
+  }, [filteredSongs, page, pageSize]);
 
   // Add song to queue
   const handleAddToQueue = (song: Song) => {
@@ -104,12 +110,16 @@ export default function SongsView() {
         <label>
           <span className="sr-only">Page size</span>
           <select
-            value={pageSize}
-            onChange={(e) => setPageSize(Number(e.target.value))}
+            value={String(pageSize)}
+            onChange={(e) => {
+              const newSize = Number(e.target.value);
+              setPageSize(newSize);
+              setPage(1);
+            }}
             className="select"
           >
             {UI_CONFIG.PAGE_SIZE_OPTIONS.map(size => (
-              <option key={size} value={size}>
+              <option key={size} value={String(size)}>
                 {size} per page
               </option>
             ))}
@@ -143,8 +153,8 @@ export default function SongsView() {
         </div>
       ) : (
         /* Songs Table */
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+        <div className="table-wrap overflow-x-auto">
+          <table className="table w-full">
             <thead>
               <tr className="border-b border-surface-200-800">
                 <th className="text-left p-3 font-medium">Title</th>
@@ -156,7 +166,7 @@ export default function SongsView() {
               </tr>
             </thead>
             <tbody>
-              {filteredSongs.map((song) => (
+              {paginatedSongs.map((song) => (
                 <tr 
                   key={song.songId} 
                   className="border-b border-surface-100-900 hover:bg-surface-100-900 transition-colors"
@@ -208,7 +218,7 @@ export default function SongsView() {
             </tbody>
           </table>
           
-          {filteredSongs.length === 0 && !loading && (
+          {paginatedSongs.length === 0 && !loading && (
             <div className="text-center py-12">
               <div className="text-surface-400-600 mb-2">
                 {searchTerm ? 'No songs found matching your search' : 'No songs in your library'}
@@ -226,7 +236,7 @@ export default function SongsView() {
         </div>
       )}
 
-      {/* Load More */}
+      {/* Load More (for server-side pagination) */}
       {!loading && hasMore && (
         <div className="text-center py-4">
           <button
@@ -237,8 +247,52 @@ export default function SongsView() {
             {loading ? (
               <RefreshCwIcon size={16} className="animate-spin" />
             ) : null}
-            Load more songs
+            Load more songs ({filteredSongs.length} / {totalSize} loaded)
           </button>
+        </div>
+      )}
+
+      {/* Client-side Pagination */}
+      {filteredSongs.length > 0 && (
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+          <span className="text-sm text-surface-600-400">
+            Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, filteredSongs.length)} of {filteredSongs.length} entries
+            {totalSize > filteredSongs.length && (
+              <span className="ml-2 opacity-60">
+                ({totalSize} total in library)
+              </span>
+            )}
+          </span>
+          {filteredSongs.length > pageSize && (
+            <Pagination
+              count={filteredSongs.length}
+              pageSize={pageSize}
+              page={page}
+              onPageChange={(details) => setPage(details.page)}
+            >
+              <Pagination.PrevTrigger>
+                <ChevronLeftIcon className="w-4 h-4" />
+              </Pagination.PrevTrigger>
+              <Pagination.Context>
+                {(pagination) =>
+                  pagination.pages.map((pageItem, index) =>
+                    pageItem.type === 'page' ? (
+                      <Pagination.Item key={pageItem.value} type="page" value={pageItem.value}>
+                        {pageItem.value}
+                      </Pagination.Item>
+                    ) : (
+                      <Pagination.Ellipsis key={index} index={index}>
+                        ...
+                      </Pagination.Ellipsis>
+                    ),
+                  )
+                }
+              </Pagination.Context>
+              <Pagination.NextTrigger>
+                <ChevronRightIcon className="w-4 h-4" />
+              </Pagination.NextTrigger>
+            </Pagination>
+          )}
         </div>
       )}
 

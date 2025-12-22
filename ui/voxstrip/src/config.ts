@@ -11,8 +11,8 @@ export const API_CONFIG = {
 // UI Constants
 export const UI_CONFIG = {
   // Pagination
-  DEFAULT_PAGE_SIZE: 20,
-  PAGE_SIZE_OPTIONS: [10, 20, 50, 100],
+  DEFAULT_PAGE_SIZE: 10,
+  PAGE_SIZE_OPTIONS: [10, 50, 100, 500],
   
   // Search
   SEARCH_DEBOUNCE_MS: 300,
@@ -47,5 +47,3 @@ export {
   isProcessingFailed,
   isProcessingPending,
 } from './utils/statusHelpers.js';
-
-

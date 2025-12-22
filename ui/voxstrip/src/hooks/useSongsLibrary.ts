@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Song } from '../api/client.js';
 import { VoxStripAPI, handleAPIError } from '../api/client.js';
-import { UI_CONFIG } from '../config.js';
 
 export interface UseSongsLibraryOptions {
   initialPageSize?: number;
@@ -23,9 +22,8 @@ export interface UseSongsLibraryReturn {
   setSearchTerm: (term: string) => void;
   filteredSongs: Song[];
   
-  // Pagination
-  pageSize: number;
-  setPageSize: (size: number) => void;
+  // Pagination (server-side batching)
+  batchSize: number;
   pageToken: string;
   loadMore: () => void;
   hasMore: boolean;
@@ -37,14 +35,15 @@ export interface UseSongsLibraryReturn {
 }
 
 export function useSongsLibrary(options: UseSongsLibraryOptions = {}): UseSongsLibraryReturn {
-  const { initialPageSize = UI_CONFIG.DEFAULT_PAGE_SIZE, autoLoad = true } = options;
-  
+  const { autoLoad = true } = options;
+
+  const BATCH_SIZE = 500;
+
   // Data state
   const [songs, setSongs] = useState<Song[]>([]);
   const [totalSize, setTotalSize] = useState(0);
   const [pageToken, setPageToken] = useState('');
-  const [pageSize, setPageSize] = useState(initialPageSize);
-  
+
   // UI state
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,9 +73,9 @@ export function useSongsLibrary(options: UseSongsLibraryOptions = {}): UseSongsL
     try {
       setLoading(!refresh);
       setError(null);
-      
+
       const response = await VoxStripAPI.listSongs({
-        pageSize,
+        pageSize: BATCH_SIZE,
         pageToken: refresh ? '' : cursor ?? pageToken,
       });
 
@@ -90,10 +89,10 @@ export function useSongsLibrary(options: UseSongsLibraryOptions = {}): UseSongsL
           return [...prev, ...newSongs];
         });
       }
-      
+
       setPageToken(response.nextPageToken || '');
       setTotalSize(Number(response.totalSize) || response.songs.length);
-      
+
     } catch (err) {
       const apiError = handleAPIError(err);
       setError(apiError.message);
@@ -101,7 +100,7 @@ export function useSongsLibrary(options: UseSongsLibraryOptions = {}): UseSongsL
       setLoading(false);
       setRefreshing(false);
     }
-  }, [pageSize, pageToken]);
+  }, [BATCH_SIZE, pageToken]);
 
   // Refresh songs
   const refresh = useCallback(() => {
@@ -146,23 +145,22 @@ export function useSongsLibrary(options: UseSongsLibraryOptions = {}): UseSongsL
     songs,
     totalSize,
     filteredSongs,
-    
+
     // Loading states
     loading,
     refreshing,
     error,
-    
+
     // Search and filter
     searchTerm,
     setSearchTerm,
-    
-    // Pagination
-    pageSize,
-    setPageSize,
+
+    // Pagination (server-side batching)
+    batchSize: BATCH_SIZE,
     pageToken,
     loadMore,
     hasMore,
-    
+
     // Actions
     refresh,
     clearError,
