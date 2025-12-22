@@ -92,20 +92,55 @@ export class VoxStripAPI {
   }
 
   /**
-   * Import songs (will be implemented later)
+   * Import multiple songs with optional metadata overrides
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  static async importSongs(_songRequests: Array<{
-    audio: File;
-    title?: string;
-    artist?: string;
-    album?: string;
-    genre?: string;
-    lyrics?: string;
+  static async importSongs(pendingFiles: Array<{
+    file: File;
+    overrides?: {
+      title?: string;
+      artist?: string;
+      album?: string;
+      albumArtist?: string;
+      genre?: string;
+      lyrics?: string;
+      coverArtFile?: File;
+    };
   }>) {
-    // TODO: Implement file upload logic
-    // This will involve creating FormData and handling multipart uploads
-    throw new Error('Import functionality not yet implemented');
+    const importRequests = await Promise.all(
+      pendingFiles.map(async (pending) => {
+        const audioBuffer = await pending.file.arrayBuffer();
+        const audioBytes = new Uint8Array(audioBuffer);
+
+        const overrides = pending.overrides || {};
+        let coverArtBytes: Uint8Array | undefined;
+
+        if (overrides.coverArtFile) {
+          const coverBuffer = await overrides.coverArtFile.arrayBuffer();
+          coverArtBytes = new Uint8Array(coverBuffer);
+        }
+
+        return {
+          audio: audioBytes,
+          titleOverride: overrides.title,
+          artistOverride: overrides.artist,
+          albumOverride: overrides.album,
+          albumArtistOverride: overrides.albumArtist,
+          genreOverride: overrides.genre,
+          lyricsOverride: overrides.lyrics,
+          coverArtOverride: coverArtBytes,
+        };
+      })
+    );
+
+    try {
+      const response = await karaokeClient.importSongs({
+        songs: importRequests,
+      });
+
+      return response;
+    } catch (error) {
+      throw handleAPIError(error);
+    }
   }
 
   /**

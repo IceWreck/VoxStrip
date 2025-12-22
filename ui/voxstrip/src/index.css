@@ -1,5 +1,11 @@
 @import 'tailwindcss';
 
-@import '@skeletonlabs/skeleton'; 
-@import '@skeletonlabs/skeleton-react'; 
+@import '@skeletonlabs/skeleton';
+@import '@skeletonlabs/skeleton-react';
 @import '@skeletonlabs/skeleton/themes/cerberus';
+
+/* Dashed border preset */
+@utility preset-dashed-surface-200-800 {
+  background-color: var(--color-surface-100-900);
+  border: 2px dashed var(--color-surface-200-800);
+}

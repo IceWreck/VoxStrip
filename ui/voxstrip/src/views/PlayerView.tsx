@@ -60,16 +60,16 @@ export default function PlayerView() {
   const songIdRef = useRef<string | null>(null);
   const coverArtUrlRef = useRef<string | null>(null);
 
-  /* eslint-disable react-hooks/rules-of-hooks */
+   
   useEffect(() => {
     if (currentSongId !== songIdRef.current) {
       songIdRef.current = currentSongId;
       setSelectedVersion(DEFAULT_AUDIO_VERSION);
     }
   }, [currentSongId]);
-  /* eslint-enable react-hooks/rules-of-hooks */
+   
 
-  /* eslint-disable react-hooks/exhaustive-deps */
+   
   useEffect(() => {
     if (!currentSong) {
       if (coverArtUrlRef.current) {
@@ -111,7 +111,7 @@ export default function PlayerView() {
       mounted = false;
     };
   }, [currentSong]);
-  /* eslint-enable react-hooks/exhaustive-deps */
+   
 
   // Show error as toast when audioPlayer.error changes
   useEffect(() => {
