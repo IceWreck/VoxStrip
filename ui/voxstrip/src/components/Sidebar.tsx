@@ -9,7 +9,7 @@ import { Link } from '@tanstack/react-router';
 export function Sidebar() {
   const navigationItems = [
     {
-      to: '/',
+      to: '/songs',
       label: 'Songs',
       icon: MusicIcon,
       description: 'Browse your music library',
@@ -39,7 +39,7 @@ export function Sidebar() {
       {/* Header */}
       <div className="p-4">
         <Link
-          to="/"
+          to="/songs"
           aria-label="VoxStrip - AI Karaoke System"
           className="flex items-center gap-2 p-2 rounded-lg hover:bg-surface-200-800 transition-colors"
           activeProps={{

@@ -1,4 +1,4 @@
-import { createRouter, createRoute, createRootRoute } from '@tanstack/react-router';
+import { createRouter, createRoute, createRootRoute, redirect } from '@tanstack/react-router';
 import SongsView from '../views/SongsView.js';
 import QueueView from '../views/QueueView.js';
 import PlayerView from '../views/PlayerView.js';
@@ -9,9 +9,17 @@ const rootRoute = createRootRoute({
   component: App,
 });
 
-const songsRoute = createRoute({
+const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
+  beforeLoad: () => {
+    throw redirect({ to: '/songs' });
+  },
+});
+
+const songsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/songs',
   component: SongsView,
 });
 
@@ -34,6 +42,7 @@ const importRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
+  indexRoute,
   songsRoute,
   queueRoute,
   playerRoute,
