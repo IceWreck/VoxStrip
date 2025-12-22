@@ -5,6 +5,8 @@ import { useAudioPlayer } from './hooks/useAudioPlayer.js';
 import { AppContext } from './router/context.js';
 import { useEffect, useRef } from 'react';
 import { DEFAULT_AUDIO_VERSION } from './config.js';
+import { Toast } from '@skeletonlabs/skeleton-react';
+import { toaster } from './toaster.js';
 
 function App() {
   const queue = useQueue();
@@ -35,7 +37,7 @@ function App() {
       <div className="h-screen grid grid-cols-[auto_1fr] overflow-hidden">
         {/* Sidebar Navigation */}
         <Sidebar />
-        
+
         {/* Main Content Area */}
         <main className="overflow-auto bg-surface-50-950">
           <div className="container mx-auto p-4 md:p-6 lg:p-8">
@@ -45,6 +47,19 @@ function App() {
           </div>
         </main>
       </div>
+
+      {/* Toast notifications */}
+      <Toast.Group toaster={toaster}>
+        {(toast) => (
+          <Toast toast={toast} key={toast.id}>
+            <Toast.Message>
+              <Toast.Title>{toast.title}</Toast.Title>
+              <Toast.Description>{toast.description}</Toast.Description>
+            </Toast.Message>
+            <Toast.CloseTrigger />
+          </Toast>
+        )}
+      </Toast.Group>
     </AppContext.Provider>
   );
 }

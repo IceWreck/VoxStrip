@@ -6,6 +6,7 @@ import { useAppContext } from '../router/context.js';
 import { UI_CONFIG } from '../config.js';
 import StatusBadge from '../components/StatusBadge.js';
 import { isProcessingComplete } from '../utils/statusHelpers.js';
+import { toaster } from '../toaster.js';
 
 export default function SongsView() {
   const { queue } = useAppContext();
@@ -29,6 +30,12 @@ export default function SongsView() {
   // Add song to queue
   const handleAddToQueue = (song: Song) => {
     queue.addToQueue(song);
+
+    // Show success toast
+    toaster.success({
+      title: "Added to Queue",
+      description: `"${song.metadata?.title}" by ${song.metadata?.artist || 'Unknown Artist'}`
+    });
   };
 
   return (

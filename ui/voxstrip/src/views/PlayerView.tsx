@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Avatar, Slider, SegmentedControl } from '@skeletonlabs/skeleton-react';
+import { toaster } from '../toaster.js';
 import {
   PlayIcon,
   PauseIcon,
@@ -111,6 +112,16 @@ export default function PlayerView() {
     };
   }, [currentSong]);
   /* eslint-enable react-hooks/exhaustive-deps */
+
+  // Show error as toast when audioPlayer.error changes
+  useEffect(() => {
+    if (audioPlayer.error) {
+      toaster.error({
+        title: "Playback Error",
+        description: audioPlayer.error
+      });
+    }
+  }, [audioPlayer.error]);
 
   useEffect(() => {
     const song = currentSong;
@@ -370,16 +381,6 @@ export default function PlayerView() {
           </div>
         </div>
       </div>
-
-      {/* Error Display */}
-      {audioPlayer.error && (
-        <div className="fixed bottom-[200px] sm:bottom-[220px] left-1/2 transform -translate-x-1/2 z-50">
-          <div className="card preset-tonal-error p-4 shadow-lg">
-            <p className="font-medium">Playback Error</p>
-            <p className="text-sm">{audioPlayer.error}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
