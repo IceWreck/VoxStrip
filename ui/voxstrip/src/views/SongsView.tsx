@@ -1,12 +1,15 @@
 import type { Song } from '../api/client.js';
 import { formatDuration } from '../utils/formatters.js';
-import { SearchIcon, PlusIcon, RefreshCwIcon } from 'lucide-react';
+import { SearchIcon, PlusIcon, RefreshCwIcon, Trash2Icon, XIcon } from 'lucide-react';
 import { useSongsLibrary } from '../hooks/useSongsLibrary.js';
 import { useAppContext } from '../router/context.js';
 import { UI_CONFIG } from '../config.js';
 import StatusBadge from '../components/StatusBadge.js';
 import { isProcessingComplete } from '../utils/statusHelpers.js';
 import { toaster } from '../toaster.js';
+import { VoxStripAPI } from '../api/client.js';
+import { Dialog, Portal } from '@skeletonlabs/skeleton-react';
+import { useState } from 'react';
 
 export default function SongsView() {
   const { queue } = useAppContext();
@@ -27,6 +30,8 @@ export default function SongsView() {
     clearError,
   } = useSongsLibrary();
 
+  const [songToDelete, setSongToDelete] = useState<Song | null>(null);
+
   // Add song to queue
   const handleAddToQueue = (song: Song) => {
     queue.addToQueue(song);
@@ -36,6 +41,26 @@ export default function SongsView() {
       title: "Added to Queue",
       description: `"${song.metadata?.title}" by ${song.metadata?.artist || 'Unknown Artist'}`
     });
+  };
+
+  const handleDelete = async () => {
+    if (!songToDelete) return;
+
+    try {
+      await VoxStripAPI.deleteSong(songToDelete.songId);
+      toaster.success({
+        title: "Song Deleted",
+        description: `"${songToDelete.metadata?.title}" removed from library`
+      });
+      refresh();
+    } catch (error) {
+      toaster.error({
+        title: "Delete Failed",
+        description: error instanceof Error ? error.message : "Unknown error"
+      });
+    } finally {
+      setSongToDelete(null);
+    }
   };
 
   return (
@@ -63,31 +88,33 @@ export default function SongsView() {
 
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1 max-w-md">
-          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-surface-400-600 size-4" />
-          <input
-            type="text"
-            placeholder="Search songs..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-surface-200-800 rounded-lg bg-surface-50-950 focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-        </div>
-        
-        <select
-          value={pageSize}
-          onChange={(e) => {
-            const newPageSize = Number(e.target.value);
-            setPageSize(newPageSize);
-          }}
-          className="px-3 py-2 border border-surface-200-800 rounded-lg bg-surface-50-950 focus:outline-none focus:ring-2 focus:ring-primary-500"
-        >
-          {UI_CONFIG.PAGE_SIZE_OPTIONS.map(size => (
-            <option key={size} value={size}>
-              {size} per page
-            </option>
-          ))}
-        </select>
+        <label className="flex-1 max-w-md">
+          <span className="sr-only">Search songs</span>
+          <div className="relative">
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400-600 size-4" />
+            <input
+              type="search"
+              placeholder="Search songs..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input pl-10"
+            />
+          </div>
+        </label>
+        <label>
+          <span className="sr-only">Page size</span>
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+            className="select"
+          >
+            {UI_CONFIG.PAGE_SIZE_OPTIONS.map(size => (
+              <option key={size} value={size}>
+                {size} per page
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* Error State */}
@@ -105,13 +132,11 @@ export default function SongsView() {
       {loading && allSongs.length === 0 ? (
         <div className="space-y-4">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="card p-4 animate-pulse">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-surface-200-800 rounded"></div>
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-surface-200-800 rounded w-3/4"></div>
-                  <div className="h-3 bg-surface-200-800 rounded w-1/2"></div>
-                </div>
+            <div key={i} className="card p-4 flex items-center gap-4">
+              <div className="placeholder w-12 h-12"></div>
+              <div className="flex-1 space-y-2">
+                <div className="placeholder h-4 w-3/4"></div>
+                <div className="placeholder h-3 w-1/2"></div>
               </div>
             </div>
           ))}
@@ -160,14 +185,23 @@ export default function SongsView() {
                      <StatusBadge status={song.processingStatus} showIcon={false} />
                    </td>
                    <td className="p-3 text-right">
-                      <button
-                        onClick={() => handleAddToQueue(song)}
-                        disabled={!isProcessingComplete(song.processingStatus)}
-                        className="btn preset-outline flex items-center gap-1"
-                      >
-                       <PlusIcon size={14} />
-                       Add
-                     </button>
+                       <div className="flex items-center justify-end gap-1">
+                         <button
+                           onClick={() => handleAddToQueue(song)}
+                           disabled={!isProcessingComplete(song.processingStatus)}
+                           className="btn preset-outline flex items-center gap-1"
+                         >
+                           <PlusIcon size={14} />
+                           Add
+                         </button>
+                         <button
+                           onClick={() => setSongToDelete(song)}
+                           className="btn-icon preset-tonal"
+                           title="Delete song"
+                         >
+                           <Trash2Icon size={14} />
+                         </button>
+                       </div>
                    </td>
                 </tr>
               ))}
@@ -207,6 +241,36 @@ export default function SongsView() {
           </button>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={songToDelete !== null} onOpenChange={(details) => !details.open && setSongToDelete(null)}>
+        <Portal>
+          <Dialog.Backdrop className="fixed inset-0 z-50 bg-surface-50-950/50" />
+          <Dialog.Positioner className="fixed inset-0 z-50 flex justify-center items-center p-4">
+            <Dialog.Content className="card bg-surface-100-900 w-full max-w-md p-4 space-y-4 shadow-xl">
+              <header className="flex justify-between items-center">
+                <Dialog.Title className="text-lg font-bold">Delete Song</Dialog.Title>
+                <Dialog.CloseTrigger className="btn-icon hover:preset-tonal">
+                  <XIcon className="size-4" />
+                </Dialog.CloseTrigger>
+              </header>
+              <Dialog.Description>
+                Are you sure you want to delete "{songToDelete?.metadata?.title || 'this song'}"? This action cannot be undone.
+              </Dialog.Description>
+              <footer className="flex justify-end gap-2">
+                <Dialog.CloseTrigger className="btn preset-tonal">Cancel</Dialog.CloseTrigger>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  className="btn preset-filled-error"
+                >
+                  Delete
+                </button>
+              </footer>
+            </Dialog.Content>
+          </Dialog.Positioner>
+        </Portal>
+      </Dialog>
     </div>
   );
 }
