@@ -44,4 +44,7 @@ container-build:
 	podman build -t voxstrip .
 
 container-run:
-	podman run -p 8080:8080 -v voxstrip-data:/app/data voxstrip
+	podman run -ti --rm -p 8080:8080 -v voxstrip-data:/app/data voxstrip
+
+container-run-gpu:
+	podman run -ti --rm --device nvidia.com/gpu=all --security-opt label=disable -p 8080:8080 -v voxstrip-data:/app/data voxstrip

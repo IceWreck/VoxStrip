@@ -23,7 +23,7 @@ COPY . .
 
 RUN go build -v -o ./bin/voxstrip ./cmd
 
-FROM docker.io/ubuntu:22.04
+FROM docker.io/nvidia/cuda:12.4.0-base-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TORCH_HOME=/data/models \
@@ -40,11 +40,13 @@ RUN apt update && apt install -y --no-install-recommends \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m pip install "demucs>=4.0.1" "torch<2" "torchaudio<2" "numpy<2" --no-cache-dir
+RUN python3 -m pip install "torch==2.4.0" "torchaudio==2.4.0" --index-url https://download.pytorch.org/whl/cu124 --no-cache-dir && \
+    python3 -m pip install "demucs>=4.0.1" --no-cache-dir
 
 # Trigger demucs model download by running it on a test audio file
 # This ensures models are cached in TORCH_HOME before the container starts
-RUN ffmpeg -f lavfi -i "sine=frequency=440:duration=10" -q:a 9 -acodec libmp3lame /tmp/test.mp3 && \
+RUN mkdir -p /data/models && \
+    ffmpeg -f lavfi -i "sine=frequency=440:duration=10" -q:a 9 -acodec libmp3lame /tmp/test.mp3 && \
     python3 -m demucs -n htdemucs -d cpu /tmp/test.mp3 && \
     rm -rf /tmp/test.mp3 separated
 
