@@ -1,5 +1,5 @@
 #!make
-include .env
+-include .env
 export $(shell sed 's/=.*//' .env)
 SHELL := /bin/bash
 
@@ -39,3 +39,9 @@ check: fmt vet
 
 ui-dev:
 	cd ui/voxstrip && npm run dev
+
+container-build:
+	podman build -t voxstrip .
+
+container-run:
+	podman run -p 8080:8080 -v voxstrip-data:/app/data voxstrip

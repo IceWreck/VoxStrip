@@ -2,8 +2,6 @@
 
 // API Configuration
 export const API_CONFIG = {
-  // Hardcoded backend URL to avoid proxy complications
-  // Can override with environment variable if needed
   BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
   TIMEOUT_MS: 30000,
 } as const;

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"connectrpc.com/connect"
@@ -27,6 +28,17 @@ func NewServer(service *Service, opts ...connect.HandlerOption) (http.Handler, e
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
+	})
+
+	// Serve static React UI with SPA fallback
+	fs := http.FileServer(http.Dir("ui/dist"))
+	mux.Handle("/ui/", http.StripPrefix("/ui", fs))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := os.Stat("ui/dist" + r.URL.Path); err == nil {
+			fs.ServeHTTP(w, r)
+		} else {
+			http.ServeFile(w, r, "ui/dist/index.html")
+		}
 	})
 
 	// Add HTTP middleware for CORS and recovery
