@@ -10,7 +10,7 @@ import { toaster } from './toaster.js';
 
 function App() {
   const queue = useQueue();
-  const audioPlayer = useAudioPlayer();
+  const audioPlayer = useAudioPlayer(() => queue.playNext());
   const lastSyncedSongId = useRef<string | null>(null);
 
   // Sync queue current song with audio player

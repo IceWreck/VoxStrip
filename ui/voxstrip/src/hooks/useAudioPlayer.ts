@@ -31,9 +31,10 @@ export interface AudioPlayerActions {
   seekBackward: () => void;
 }
 
-export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
+export function useAudioPlayer(onEnded?: () => void): AudioPlayerState & AudioPlayerActions {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const blobUrlRef = useRef<string | null>(null);
+  const onEndedRef = useRef(onEnded);
   const [state, setState] = useState<AudioPlayerState>({
     currentSong: null,
     isPlaying: false,
@@ -83,6 +84,7 @@ export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
 
     const handleEnded = () => {
       setState(prev => ({ ...prev, isPlaying: false, currentTime: 0 }));
+      onEndedRef.current?.();
     };
 
     const handleLoadedMetadata = () => {
@@ -118,6 +120,11 @@ export function useAudioPlayer(): AudioPlayerState & AudioPlayerActions {
       }
     };
   }, []);
+
+  // Update onEnded ref when callback changes
+  useEffect(() => {
+    onEndedRef.current = onEnded;
+  }, [onEnded]);
 
   // Play
   const play = useCallback(() => {

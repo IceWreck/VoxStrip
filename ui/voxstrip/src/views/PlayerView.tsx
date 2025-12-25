@@ -54,10 +54,8 @@ const parseLyrics = (lyrics?: string): LyricLine[] => {
 export default function PlayerView() {
   const { queue, audioPlayer } = useAppContext();
   const currentSong = queue.currentSong;
-  const currentSongId = currentSong?.songId ?? null;
   const [selectedVersion, setSelectedVersion] = useState<AudioVersionKey>(DEFAULT_AUDIO_VERSION);
   const [coverArtUrl, setCoverArtUrl] = useState('/placeholder-album.png');
-  const songIdRef = useRef<string | null>(null);
   const coverArtUrlRef = useRef<string | null>(null);
 
 
