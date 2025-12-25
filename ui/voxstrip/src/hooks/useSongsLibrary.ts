@@ -1,34 +1,20 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Song } from '../api/client.js';
 import { VoxStripAPI, handleAPIError } from '../api/client.js';
 
 export interface UseSongsLibraryOptions {
-  initialPageSize?: number;
   autoLoad?: boolean;
 }
 
 export interface UseSongsLibraryReturn {
-  // Data
   songs: Song[];
   totalSize: number;
-  
-  // Loading states
   loading: boolean;
-  refreshing: boolean;
+  loadingProgress: number;
   error: string | null;
-  
-  // Search and filter
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   filteredSongs: Song[];
-  
-  // Pagination (server-side batching)
-  batchSize: number;
-  pageToken: string;
-  loadMore: () => void;
-  hasMore: boolean;
-  
-  // Actions
   refresh: () => void;
   clearError: () => void;
   reset: () => void;
@@ -39,18 +25,14 @@ export function useSongsLibrary(options: UseSongsLibraryOptions = {}): UseSongsL
 
   const BATCH_SIZE = 500;
 
-  // Data state
   const [songs, setSongs] = useState<Song[]>([]);
   const [totalSize, setTotalSize] = useState(0);
-  const [pageToken, setPageToken] = useState('');
-
-  // UI state
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const hasLoaded = useRef(false);
 
-  // Filter songs based on search term
   const filteredSongs = useMemo(() => {
     if (!searchTerm.trim()) return songs;
 
@@ -58,7 +40,7 @@ export function useSongsLibrary(options: UseSongsLibraryOptions = {}): UseSongsL
     return songs.filter(song => {
       const metadata = song.metadata;
       if (!metadata) return false;
-      
+
       return (
         metadata.title?.toLowerCase().includes(searchLower) ||
         metadata.artist?.toLowerCase().includes(searchLower) ||
@@ -68,100 +50,97 @@ export function useSongsLibrary(options: UseSongsLibraryOptions = {}): UseSongsL
     });
   }, [songs, searchTerm]);
 
-  // Load songs
-  const loadSongs = useCallback(async (refresh = false, cursor?: string) => {
+  const loadAllSongs = useCallback(async () => {
     try {
-      setLoading(!refresh);
+      setLoading(true);
       setError(null);
+      setLoadingProgress(0);
+      setSongs([]);
 
-      const response = await VoxStripAPI.listSongs({
-        pageSize: BATCH_SIZE,
-        pageToken: refresh ? '' : cursor ?? pageToken,
-      });
+      let allSongs: Song[] = [];
+      let pageToken = '';
+      let totalSize = 0;
+      const seenSongIds = new Set<string>();
 
-      if (refresh) {
-        setSongs(response.songs);
-      } else {
-        // Ensure no duplicates when loading more songs
-        setSongs(prev => {
-          const existingIds = new Set(prev.map(song => song.songId));
-          const newSongs = response.songs.filter(song => !existingIds.has(song.songId));
-          return [...prev, ...newSongs];
+      while (true) {
+        const response = await VoxStripAPI.listSongs({
+          pageSize: BATCH_SIZE,
+          pageToken,
         });
+
+        const newSongs = response.songs.filter(song => !seenSongIds.has(song.songId));
+
+        if (newSongs.length === 0) {
+          break;
+        }
+
+        newSongs.forEach(song => seenSongIds.add(song.songId));
+        allSongs = [...allSongs, ...newSongs];
+
+        totalSize = Number(response.totalSize) || allSongs.length;
+
+        if (totalSize > 0) {
+          setLoadingProgress((allSongs.length / totalSize) * 100);
+        }
+
+        if (!response.nextPageToken) {
+          break;
+        }
+
+        if (newSongs.length < BATCH_SIZE) {
+          break;
+        }
+
+        pageToken = response.nextPageToken;
       }
 
-      setPageToken(response.nextPageToken || '');
-      setTotalSize(Number(response.totalSize) || response.songs.length);
+      setSongs(allSongs);
+      setTotalSize(totalSize);
+      setLoadingProgress(100);
+      hasLoaded.current = true;
 
     } catch (err) {
       const apiError = handleAPIError(err);
       setError(apiError.message);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }, [BATCH_SIZE, pageToken]);
+  }, [BATCH_SIZE]);
 
-  // Refresh songs
   const refresh = useCallback(() => {
-    setRefreshing(true);
-    loadSongs(true, '');
-  }, [loadSongs]);
+    hasLoaded.current = false;
+    loadAllSongs();
+  }, [loadAllSongs]);
 
-  // Load more songs
-  const loadMore = useCallback(() => {
-    if (loading) return;
-    loadSongs(false);
-  }, [loading, loadSongs]);
-
-  // Clear error
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
-  // Reset all state
   const reset = useCallback(() => {
     setSongs([]);
     setTotalSize(0);
-    setPageToken('');
     setSearchTerm('');
     setError(null);
     setLoading(false);
-    setRefreshing(false);
+    setLoadingProgress(0);
+    hasLoaded.current = false;
   }, []);
 
-  // Auto-load on mount if enabled
   useEffect(() => {
-    if (autoLoad && songs.length === 0 && !loading) {
-      loadSongs(false);
+    if (autoLoad && !hasLoaded.current && !loading && !error) {
+      loadAllSongs();
     }
-  }, [autoLoad, loadSongs, songs.length, loading]);
-
-  // Check if there are more songs to load
-  const hasMore = songs.length < totalSize;
+  }, [autoLoad, loadAllSongs, loading, error]);
 
   return {
-    // Data
     songs,
     totalSize,
-    filteredSongs,
-
-    // Loading states
     loading,
-    refreshing,
+    loadingProgress,
     error,
-
-    // Search and filter
     searchTerm,
     setSearchTerm,
-
-    // Pagination (server-side batching)
-    batchSize: BATCH_SIZE,
-    pageToken,
-    loadMore,
-    hasMore,
-
-    // Actions
+    filteredSongs,
     refresh,
     clearError,
     reset,

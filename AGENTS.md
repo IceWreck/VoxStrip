@@ -32,6 +32,8 @@ VoxStrip (Go-based AI Karaoke System)
 
 The API layer defines the service contract through Protocol Buffers in `proto/server.proto` and implements the Connect RPC handlers in `pkg/api/service.go`. This layer handles request validation, file uploads, metadata management, and orchestrates interactions between storage and file management components. It exposes high-level operations like song import, library listing with pagination, and audio downloads with version selection.
 
+Besides connectrpc's native protocol ConnectRPC also support curl and and other http clients by creating an HTTP and JSON based API - https://connectrpc.com/docs/curl-and-other-clients
+
 Storage abstraction is implemented through the repository pattern with the core interface in `pkg/store/interface.go`, supporting both SQLite production implementation in `pkg/store/sqlite/` and in-memory development version in `pkg/store/inmemory/`. The Song entity captures metadata, processing status, and timing information while supporting atomic song claiming for background processing through the `ClaimNextPendingSong` method.
 
 File management uses the blobstore pattern defined in `pkg/blobstore/interface.go` with filesystem implementation in `pkg/blobstore/filesystem.go`. It organizes files by type (Original, Vocal, Instrumental, CoverArt) and handles storage, retrieval, and existence checking with proper MIME type detection and path security.
@@ -39,6 +41,7 @@ File management uses the blobstore pattern defined in `pkg/blobstore/interface.g
 The audio processing pipeline consists of a coordinator in `pkg/processor` that manages configurable worker pools in `pkg/processor/worker.go`. Songs progress through discrete processing states with background workers claiming pending songs, performing vocal separation using external demucs CLI, and updating completion status.
 
 The UI layer is built with React and Skeleton.dev, located at `ui/voxstrip/`. It includes a generated TypeScript client at `ui/voxstrip/src/proto/` that provides type-safe access to the Connect RPC API. This enables seamless communication between the frontend and backend while maintaining consistency across the stack.
+We are using Tanstack Router for routing between pages and Tanstack table for displaying a table.
 
 Configuration management in `pkg/config/config.go` uses environment-based settings for server parameters (host, port, CORS), storage paths, and audio processing options (worker count, timeouts). The system validates input sizes, enforces UUID-based song identification, and implements comprehensive error handling throughout all layers.
 

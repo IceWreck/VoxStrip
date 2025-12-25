@@ -8,23 +8,20 @@ import StatusBadge from '../components/StatusBadge.js';
 import { isProcessingComplete } from '../utils/statusHelpers.js';
 import { toaster } from '../toaster.js';
 import { VoxStripAPI } from '../api/client.js';
-import { Dialog, Portal } from '@skeletonlabs/skeleton-react';
+import { Dialog, Portal, Progress } from '@skeletonlabs/skeleton-react';
 import { useReactTable, getCoreRowModel, getPaginationRowModel, flexRender, type ColumnDef, type PaginationState } from '@tanstack/react-table';
 import { useState, useMemo, useCallback } from 'react';
 
 export default function SongsView() {
   const { queue } = useAppContext();
   const {
-    songs: allSongs,
     totalSize,
     loading,
-    refreshing,
+    loadingProgress,
     error,
     searchTerm,
     setSearchTerm,
     filteredSongs,
-    loadMore,
-    hasMore,
     refresh,
     clearError,
   } = useSongsLibrary();
@@ -35,11 +32,9 @@ export default function SongsView() {
     pageSize: UI_CONFIG.DEFAULT_PAGE_SIZE,
   });
 
-  // Add song to queue
   const handleAddToQueue = useCallback((song: Song) => {
     queue.addToQueue(song);
 
-    // Show success toast
     toaster.success({
       title: "Added to Queue",
       description: `"${song.metadata?.title}" by ${song.metadata?.artist || 'Unknown Artist'}`
@@ -139,10 +134,10 @@ export default function SongsView() {
         <div className="flex gap-2">
           <button
             onClick={refresh}
-            disabled={refreshing || loading}
+            disabled={loading}
             className="btn preset-outline flex items-center gap-2"
           >
-            <RefreshCwIcon size={16} className={refreshing ? 'animate-spin' : ''} />
+            <RefreshCwIcon size={16} className={loading ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>
@@ -177,80 +172,67 @@ export default function SongsView() {
       )}
 
       {/* Loading State */}
-      {loading && allSongs.length === 0 ? (
-        <div className="space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="card p-4 flex items-center gap-4">
-              <div className="placeholder w-12 h-12"></div>
-              <div className="flex-1 space-y-2">
-                <div className="placeholder h-4 w-3/4"></div>
-                <div className="placeholder h-3 w-1/2"></div>
-              </div>
-            </div>
-          ))}
+      {loading && (
+        <div className="text-center py-12 space-y-4">
+          <Progress value={loadingProgress} className="items-center w-fit mx-auto">
+            <Progress.Circle>
+              <Progress.CircleTrack />
+              <Progress.CircleRange />
+            </Progress.Circle>
+            <Progress.ValueText />
+          </Progress>
+          <p className="text-sm text-surface-600-400">
+            Loading songs library...
+          </p>
         </div>
-       ) : (
-         /* Songs Table */
-         <div className="table-wrap overflow-x-auto">
-           <table className="table w-full">
-             <thead>
-               {table.getHeaderGroups().map((headerGroup) => (
-                 <tr key={headerGroup.id} className="border-b border-surface-200-800">
-                   {headerGroup.headers.map((header) => (
-                     <th key={header.id} className="text-left p-3 font-medium">
-                       {flexRender(header.column.columnDef.header, header.getContext())}
-                     </th>
-                   ))}
-                 </tr>
-               ))}
-             </thead>
-             <tbody>
-               {table.getRowModel().rows.map((row) => (
-                 <tr
-                   key={row.id}
-                   className="border-b border-surface-100-900 hover:bg-surface-100-900 transition-colors"
-                 >
-                   {row.getVisibleCells().map((cell) => (
-                     <td key={cell.id} className="p-3">
-                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                     </td>
-                   ))}
-                 </tr>
-               ))}
-             </tbody>
-           </table>
+      )}
 
-           {table.getRowModel().rows.length === 0 && !loading && (
-             <div className="text-center py-12">
-               <div className="text-surface-400-600 mb-2">
-                 {searchTerm ? 'No songs found matching your search' : 'No songs in your library'}
-               </div>
-               {searchTerm && (
-                 <button
-                   onClick={() => setSearchTerm('')}
-                   className="btn preset-outline"
-                 >
-                   Clear search
-                 </button>
-               )}
-             </div>
-           )}
-         </div>
-       )}
+      {/* Songs Table */}
+      {!loading && (
+        <div className="table-wrap overflow-x-auto">
+          <table className="table w-full">
+            <thead>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id} className="border-b border-surface-200-800">
+                  {headerGroup.headers.map((header) => (
+                    <th key={header.id} className="text-left p-3 font-medium">
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {table.getRowModel().rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className="border-b border-surface-100-900 hover:bg-surface-100-900 transition-colors"
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="p-3">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-      {/* Load More (for server-side pagination) - only show on last page */}
-      {!loading && hasMore && table.getState().pagination.pageIndex === table.getPageCount() - 1 && (
-        <div className="text-center py-4">
-          <button
-            onClick={loadMore}
-            disabled={loading}
-            className="btn preset-outline flex items-center gap-2 mx-auto"
-          >
-            {loading ? (
-              <RefreshCwIcon size={16} className="animate-spin" />
-            ) : null}
-            Load more songs ({filteredSongs.length} / {totalSize} loaded)
-          </button>
+          {table.getRowModel().rows.length === 0 && (
+            <div className="text-center py-12">
+              <div className="text-surface-400-600 mb-2">
+                {searchTerm ? 'No songs found matching your search' : 'No songs in your library'}
+              </div>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="btn preset-outline"
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -261,11 +243,6 @@ export default function SongsView() {
             Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
             {Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, filteredSongs.length)} of{' '}
             {filteredSongs.length} entries
-            {totalSize > filteredSongs.length && (
-              <span className="ml-2 opacity-60">
-                ({totalSize} total in library)
-              </span>
-            )}
           </span>
 
           <div className="flex items-center gap-2">
