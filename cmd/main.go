@@ -58,7 +58,7 @@ func main() {
 	}()
 
 	// Setup server
-	handler, err := api.NewServer(service)
+	handler, err := api.NewServer(service, cfg)
 	if err != nil {
 		slog.Error("failed to create server", "error", err)
 		os.Exit(1)

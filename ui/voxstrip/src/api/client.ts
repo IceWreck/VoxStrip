@@ -9,7 +9,7 @@ const transport = createConnectTransport({
   fetch: (input, init) => {
     return fetch(input, {
       ...init,
-      credentials: 'omit', // Omit credentials to avoid CORS issues with localhost
+      credentials: 'include',
     });
   },
   interceptors: [

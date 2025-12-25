@@ -10,11 +10,12 @@ import (
 	"connectrpc.com/connect"
 	connectcors "connectrpc.com/cors"
 	voxstripv1connect "github.com/IceWreck/VoxStrip/gen/proto/voxstripv1connect"
+	"github.com/IceWreck/VoxStrip/pkg/config"
 	"github.com/rs/cors"
 )
 
 // NewServer creates a new HTTP server with Connect RPC handlers
-func NewServer(service *Service, opts ...connect.HandlerOption) (http.Handler, error) {
+func NewServer(service *Service, cfg *config.Config, opts ...connect.HandlerOption) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	// Add logging interceptor
@@ -42,7 +43,7 @@ func NewServer(service *Service, opts ...connect.HandlerOption) (http.Handler, e
 	})
 
 	// Add HTTP middleware for CORS and recovery
-	handlerWithMiddleware := addHTTPMiddleware(mux)
+	handlerWithMiddleware := addHTTPMiddleware(mux, cfg)
 
 	slog.Info("server created with Connect RPC handlers", "path", path)
 	return handlerWithMiddleware, nil
@@ -80,7 +81,7 @@ func loggingInterceptor() connect.UnaryInterceptorFunc {
 }
 
 // addHTTPMiddleware adds HTTP-level middleware (CORS and recovery)
-func addHTTPMiddleware(handler http.Handler) http.Handler {
+func addHTTPMiddleware(handler http.Handler, cfg *config.Config) http.Handler {
 	// Recovery middleware
 	recovery := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -94,13 +95,26 @@ func addHTTPMiddleware(handler http.Handler) http.Handler {
 		})
 	}
 
+	allowedOrigins := cfg.CORS.AllowedOrigins
+	if len(allowedOrigins) == 0 {
+		allowedOrigins = []string{"*"}
+	} else {
+		// Always allow localhost origins
+		allowedOrigins = append(allowedOrigins,
+			"http://localhost:*",
+			"http://127.0.0.1:*",
+			"https://localhost:*",
+			"https://127.0.0.1:*",
+		)
+	}
+
 	// CORS middleware using Connect's recommended approach
 	corsMiddleware := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"}, // TODO: Configure proper origins for production
+		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   connectcors.AllowedMethods(),
 		AllowedHeaders:   connectcors.AllowedHeaders(),
 		ExposedHeaders:   connectcors.ExposedHeaders(),
-		AllowCredentials: false,
+		AllowCredentials: true,
 	})
 
 	// Apply middleware in correct order (outermost to innermost)

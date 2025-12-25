@@ -12,6 +12,10 @@ type Config struct {
 		Host string `env:"HOST" envDefault:"0.0.0.0"`
 	}
 
+	CORS struct {
+		AllowedOrigins []string `env:"CORS_ALLOWED_ORIGINS" envSeparator:","`
+	}
+
 	Database struct {
 		Path string `env:"DB_PATH" envDefault:"./data/voxstrip.db"`
 	}

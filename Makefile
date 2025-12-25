@@ -38,7 +38,7 @@ tools:
 check: fmt vet
 
 ui-dev:
-	cd ui/voxstrip && npm run dev
+	cd ui/voxstrip && VITE_API_BASE_URL="http://localhost:8080" make ui-dev npm run dev
 
 container-build:
 	podman build -t voxstrip .
