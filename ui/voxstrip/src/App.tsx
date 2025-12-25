@@ -21,7 +21,7 @@ function App() {
       // Load the current queue song in the default audio version
       audioPlayer.loadSong(queue.currentSong!, DEFAULT_AUDIO_VERSION);
     }
-  }, [queue.currentSong, audioPlayer]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [queue.currentSong, audioPlayer]);
 
   // Sync playing state - queue controls audio player
   useEffect(() => {
@@ -30,7 +30,7 @@ function App() {
     } else if (!queue.isPlaying && audioPlayer.isPlaying) {
       audioPlayer.pause();
     }
-  }, [queue.isPlaying, audioPlayer.isPlaying, audioPlayer.isLoading, queue.currentSong, audioPlayer]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [queue.isPlaying, audioPlayer.isPlaying, audioPlayer.isLoading, queue.currentSong, audioPlayer]);
 
   return (
     <AppContext.Provider value={{ queue, audioPlayer }}>

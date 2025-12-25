@@ -206,14 +206,30 @@ export default function PlayerView() {
   }
 
   return (
-    <div className="min-h-[100vh] flex flex-col bg-surface-50-950">
+    <div 
+      className="min-h-[100vh] flex flex-col bg-surface-50-950 relative overflow-hidden"
+      style={{
+        backgroundImage: `url(${coverArtUrl})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      {/* Blurred Album Art Background */}
+      <div 
+        className="absolute inset-0 -z-0"
+        style={{ 
+          backdropFilter: 'blur(8px)',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+        }}
+      />
+
       {/* Full-height Lyrics Display */}
-      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 pb-[180px] sm:pb-[200px] overflow-hidden">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 pb-[180px] sm:pb-[200px] overflow-hidden relative z-10">
         <div className="max-w-5xl w-full space-y-6 sm:space-y-8">
           {/* Previous lyrics - faded */}
           <div className="space-y-2 text-center opacity-40 min-h-[80px]">
             {previousLyrics.map((line, index) => (
-              <p key={`prev-${line.time}-${index}`} className="text-xl sm:text-2xl md:text-3xl font-light text-surface-600-400">
+              <p key={`prev-${line.time}-${index}`} className="text-xl sm:text-2xl md:text-3xl font-light text-white">
                 {line.text}
               </p>
             ))}
@@ -222,8 +238,8 @@ export default function PlayerView() {
           {/* Current lyric - highlighted and large */}
           <div className="text-center min-h-[120px] flex items-center justify-center">
             {currentLyric && (
-              <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-primary-600 dark:text-primary-400
-                             transition-all duration-500 transform scale-105 px-4">
+              <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white
+                             transition-all duration-500 transform scale-105 px-4 drop-shadow-2xl">
                 {currentLyric}
               </p>
             )}
@@ -232,7 +248,7 @@ export default function PlayerView() {
           {/* Next lyrics - visible but muted */}
           <div className="space-y-2 text-center opacity-60 min-h-[100px]">
             {nextLyrics.map((line, index) => (
-              <p key={`next-${line.time}-${index}`} className="text-lg sm:text-xl md:text-2xl font-medium text-surface-700-300">
+              <p key={`next-${line.time}-${index}`} className="text-lg sm:text-xl md:text-2xl font-medium text-white">
                 {line.text}
               </p>
             ))}
