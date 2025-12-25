@@ -64,6 +64,7 @@ export default function PlayerView() {
   useEffect(() => {
     if (currentSongId !== songIdRef.current) {
       songIdRef.current = currentSongId;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedVersion(DEFAULT_AUDIO_VERSION);
     }
   }, [currentSongId]);
@@ -76,6 +77,7 @@ export default function PlayerView() {
         URL.revokeObjectURL(coverArtUrlRef.current);
         coverArtUrlRef.current = null;
       }
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCoverArtUrl('/placeholder-album.png');
       return;
     }
@@ -289,7 +291,7 @@ export default function PlayerView() {
               </Avatar>
 
               {/* Song Info */}
-              <div className="min-w-0 hidden sm:block">
+              <div className="w-56 hidden sm:block">
                 <h2 className="font-semibold text-sm truncate">{currentSong.metadata?.title || 'Unknown Title'}</h2>
                 <p className="text-xs text-surface-600-400 truncate">{currentSong.metadata?.artist || 'Unknown Artist'}</p>
               </div>
