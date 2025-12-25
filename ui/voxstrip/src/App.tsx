@@ -21,16 +21,16 @@ function App() {
       // Load the current queue song in the default audio version
       audioPlayer.loadSong(queue.currentSong!, DEFAULT_AUDIO_VERSION);
     }
-  }, [queue.currentSong]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [queue.currentSong, audioPlayer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync playing state - queue controls audio player
   useEffect(() => {
-    if (queue.isPlaying && !audioPlayer.isPlaying && queue.currentSong) {
+    if (queue.isPlaying && !audioPlayer.isPlaying && queue.currentSong && !audioPlayer.isLoading) {
       audioPlayer.play();
     } else if (!queue.isPlaying && audioPlayer.isPlaying) {
       audioPlayer.pause();
     }
-  }, [queue.isPlaying, audioPlayer.isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [queue.isPlaying, audioPlayer.isPlaying, audioPlayer.isLoading, queue.currentSong, audioPlayer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AppContext.Provider value={{ queue, audioPlayer }}>
