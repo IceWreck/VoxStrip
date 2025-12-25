@@ -10,7 +10,7 @@ export const API_CONFIG = {
 export const UI_CONFIG = {
   // Pagination
   DEFAULT_PAGE_SIZE: 10,
-  PAGE_SIZE_OPTIONS: [10, 50, 100, 500],
+  PAGE_SIZE_OPTIONS: [10, 15, 50, 100],
 
   // Audio
   AUDIO_SEEK_STEP: 5,

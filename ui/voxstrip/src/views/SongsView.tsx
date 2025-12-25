@@ -232,7 +232,7 @@ export default function SongsView() {
 
       {/* Songs Table */}
       {!loading && (
-        <div className="table-wrap overflow-x-auto">
+        <div className="table-wrap overflow-x-auto max-h-[800px] overflow-y-auto">
           <table className="table w-full">
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
