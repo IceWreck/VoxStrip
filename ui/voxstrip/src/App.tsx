@@ -39,7 +39,7 @@ function App() {
         <Sidebar />
 
         {/* Main Content Area */}
-        <main className="overflow-auto">
+        <main className="overflow-auto scrollbar-hide">
           <div className="container mx-auto p-4 md:p-6 lg:p-8">
             <div className="max-w-7xl mx-auto">
               <Outlet />

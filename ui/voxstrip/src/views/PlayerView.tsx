@@ -235,7 +235,7 @@ export default function PlayerView() {
       {/* Overlay to darken background for better text readability */}
       <div className="fixed inset-0 -z-40" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} />
 
-      <div className="min-h-[100vh] flex flex-col relative overflow-hidden">
+        <div className="min-h-[100vh] flex flex-col relative overflow-hidden">
         {/* Full-height Lyrics Display */}
         <div className="flex-1 flex items-center justify-center p-4 sm:p-8 pb-[180px] sm:pb-[200px] overflow-hidden relative z-10">
           <div className="max-w-5xl w-full space-y-6 sm:space-y-8">
