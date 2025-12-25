@@ -258,14 +258,14 @@ export default function PlayerView() {
               )}
             </div>
 
-            {/* Next lyrics - visible but muted */}
-            <div className="space-y-2 text-center opacity-60 min-h-[100px]">
-              {nextLyrics.map((line, index) => (
-                <p key={`next-${line.time}-${index}`} className="text-lg sm:text-xl md:text-2xl font-medium text-white">
-                  {line.text}
-                </p>
-              ))}
-            </div>
+          {/* Next lyrics - more emphasized than previous to show upcoming */}
+          <div className="space-y-2 text-center opacity-75 min-h-[100px]">
+            {nextLyrics.map((line, index) => (
+              <p key={`next-${line.time}-${index}`} className="text-xl sm:text-2xl md:text-3xl font-medium text-white">
+                {line.text}
+              </p>
+            ))}
+          </div>
           </div>
         </div>
 
