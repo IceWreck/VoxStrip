@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/IceWreck/VoxStrip/pkg/store"
@@ -165,7 +166,7 @@ func (s *sqliteStore) ListSongs(ctx context.Context, opts store.ListOptions) ([]
 	}
 
 	// Build ORDER BY and LIMIT clauses
-	orderClause := "ORDER BY created_at DESC"
+	orderClause := "ORDER BY created_at DESC, id DESC"
 	limitClause := fmt.Sprintf("LIMIT %d", opts.PageSize)
 	if opts.PageSize <= 0 {
 		limitClause = "LIMIT 50" // Default page size
@@ -173,14 +174,21 @@ func (s *sqliteStore) ListSongs(ctx context.Context, opts store.ListOptions) ([]
 
 	// Add cursor-based pagination if page token is provided
 	if opts.PageToken != "" {
-		// Validate page token format
-		if _, err := time.Parse(time.RFC3339Nano, opts.PageToken); err != nil {
-			return nil, "", 0, fmt.Errorf("invalid page token format: must be RFC3339Nano timestamp")
+		// Parse composite page token: <timestamp>|<song_id>
+		parts := strings.Split(opts.PageToken, "|")
+		if len(parts) != 2 {
+			return nil, "", 0, fmt.Errorf("invalid page token format")
 		}
 
-		whereClause += fmt.Sprintf(" AND created_at < $%d", argIndex)
-		args = append(args, opts.PageToken)
-		argIndex++
+		pageTime, err := time.Parse(time.RFC3339Nano, parts[0])
+		if err != nil {
+			return nil, "", 0, fmt.Errorf("invalid page token format: %w", err)
+		}
+		songID := parts[1]
+
+		whereClause += fmt.Sprintf(" AND (created_at < $%d OR (created_at = $%d AND id < $%d))", argIndex, argIndex+1, argIndex+2)
+		args = append(args, pageTime, pageTime, songID)
+		argIndex += 3
 	}
 
 	// Execute query
@@ -201,6 +209,7 @@ func (s *sqliteStore) ListSongs(ctx context.Context, opts store.ListOptions) ([]
 
 	var songs []*store.Song
 	var lastCreatedAt time.Time
+	var lastID string
 
 	for rows.Next() {
 		var song store.Song
@@ -229,6 +238,7 @@ func (s *sqliteStore) ListSongs(ctx context.Context, opts store.ListOptions) ([]
 		song.ProcessingStatus = store.ProcessingStatus(processingStatus)
 		songs = append(songs, &song)
 		lastCreatedAt = song.CreatedAt
+		lastID = song.ID
 	}
 
 	if err := rows.Err(); err != nil {
@@ -239,7 +249,7 @@ func (s *sqliteStore) ListSongs(ctx context.Context, opts store.ListOptions) ([]
 	// Generate next page token
 	var nextPageToken string
 	if len(songs) > 0 && len(songs) == opts.PageSize {
-		nextPageToken = lastCreatedAt.Format(time.RFC3339Nano)
+		nextPageToken = fmt.Sprintf("%s|%s", lastCreatedAt.Format(time.RFC3339Nano), lastID)
 	}
 
 	slog.Debug("listed songs", "count", len(songs), "total", total, "has_next", nextPageToken != "")

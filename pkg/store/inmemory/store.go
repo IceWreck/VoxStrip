@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,8 +77,11 @@ func (s *inmemoryStore) ListSongs(ctx context.Context, opts store.ListOptions) (
 		}
 	}
 
-	// Sort by created_at descending
+	// Sort by created_at descending, then by id for tiebreaker
 	sort.Slice(filteredSongs, func(i, j int) bool {
+		if filteredSongs[i].CreatedAt.Equal(filteredSongs[j].CreatedAt) {
+			return filteredSongs[i].ID > filteredSongs[j].ID
+		}
 		return filteredSongs[i].CreatedAt.After(filteredSongs[j].CreatedAt)
 	})
 
@@ -91,14 +95,20 @@ func (s *inmemoryStore) ListSongs(ctx context.Context, opts store.ListOptions) (
 
 	start := 0
 	if opts.PageToken != "" {
-		// Find the starting position based on page token (timestamp)
-		pageTime, err := time.Parse(time.RFC3339Nano, opts.PageToken)
-		if err != nil {
-			return nil, "", 0, fmt.Errorf("invalid page token: %w", err)
+		// Parse composite page token: <timestamp>|<song_id>
+		parts := strings.Split(opts.PageToken, "|")
+		if len(parts) != 2 {
+			return nil, "", 0, fmt.Errorf("invalid page token format")
 		}
 
+		pageTime, err := time.Parse(time.RFC3339Nano, parts[0])
+		if err != nil {
+			return nil, "", 0, fmt.Errorf("invalid page token format: %w", err)
+		}
+		songID := parts[1]
+
 		for i, song := range filteredSongs {
-			if song.CreatedAt.Before(pageTime) || song.CreatedAt.Equal(pageTime) {
+			if song.CreatedAt.Before(pageTime) || (song.CreatedAt.Equal(pageTime) && song.ID <= songID) {
 				start = i
 				break
 			}
@@ -123,7 +133,7 @@ func (s *inmemoryStore) ListSongs(ctx context.Context, opts store.ListOptions) (
 	// Generate next page token
 	var nextPageToken string
 	if end < len(filteredSongs) {
-		nextPageToken = filteredSongs[end-1].CreatedAt.Format(time.RFC3339Nano)
+		nextPageToken = fmt.Sprintf("%s|%s", filteredSongs[end-1].CreatedAt.Format(time.RFC3339Nano), filteredSongs[end-1].ID)
 	}
 
 	slog.Debug("listed songs from memory", "count", len(page), "total", total, "has_next", nextPageToken != "")
