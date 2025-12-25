@@ -1,6 +1,6 @@
 import type { Song } from '../api/client.js';
 import { formatDuration } from '../utils/formatters.js';
-import { SearchIcon, PlusIcon, RefreshCwIcon, Trash2Icon, XIcon, ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
+import { SearchIcon, PlusIcon, RefreshCwIcon, Trash2Icon, XIcon, ChevronLeftIcon, ChevronRightIcon, ArrowUpIcon, ArrowDownIcon } from 'lucide-react';
 import { useSongsLibrary } from '../hooks/useSongsLibrary.js';
 import { useAppContext } from '../router/context.js';
 import { UI_CONFIG } from '../config.js';
@@ -9,7 +9,7 @@ import { isProcessingComplete } from '../utils/statusHelpers.js';
 import { toaster } from '../toaster.js';
 import { VoxStripAPI } from '../api/client.js';
 import { Dialog, Portal, Progress } from '@skeletonlabs/skeleton-react';
-import { useReactTable, getCoreRowModel, getPaginationRowModel, flexRender, type ColumnDef, type PaginationState } from '@tanstack/react-table';
+import { useReactTable, getCoreRowModel, getPaginationRowModel, getSortedRowModel, flexRender, type ColumnDef, type PaginationState, type SortingState } from '@tanstack/react-table';
 import { useState, useMemo, useCallback } from 'react';
 
 export default function SongsView() {
@@ -31,6 +31,8 @@ export default function SongsView() {
     pageIndex: 0,
     pageSize: UI_CONFIG.DEFAULT_PAGE_SIZE,
   });
+
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   const handleAddToQueue = useCallback((song: Song) => {
     queue.addToQueue(song);
@@ -64,18 +66,57 @@ export default function SongsView() {
   const columns = useMemo<ColumnDef<Song>[]>(() => [
     {
       accessorKey: 'metadata.title',
-      header: 'Title',
+      header: ({ column }) => (
+        <div
+          className="cursor-pointer select-none flex items-center gap-1"
+          onClick={column.getToggleSortingHandler()}
+          title={column.getNextSortingOrder() === 'asc' ? 'Sort ascending' : column.getNextSortingOrder() === 'desc' ? 'Sort descending' : 'Clear sort'}
+        >
+          Title
+          <span className="flex items-center">
+            {column.getIsSorted() === 'asc' && <ArrowUpIcon size={14} />}
+            {column.getIsSorted() === 'desc' && <ArrowDownIcon size={14} />}
+          </span>
+        </div>
+      ),
       cell: (info) => info.getValue() as string ?? 'Unknown Title',
+      sortingFn: 'alphanumeric',
     },
     {
       accessorKey: 'metadata.artist',
-      header: 'Artist',
+      header: ({ column }) => (
+        <div
+          className="cursor-pointer select-none flex items-center gap-1"
+          onClick={column.getToggleSortingHandler()}
+          title={column.getNextSortingOrder() === 'asc' ? 'Sort ascending' : column.getNextSortingOrder() === 'desc' ? 'Sort descending' : 'Clear sort'}
+        >
+          Artist
+          <span className="flex items-center">
+            {column.getIsSorted() === 'asc' && <ArrowUpIcon size={14} />}
+            {column.getIsSorted() === 'desc' && <ArrowDownIcon size={14} />}
+          </span>
+        </div>
+      ),
       cell: (info) => info.getValue() as string ?? 'Unknown Artist',
+      sortingFn: 'alphanumeric',
     },
     {
       accessorKey: 'metadata.album',
-      header: 'Album',
+      header: ({ column }) => (
+        <div
+          className="cursor-pointer select-none flex items-center gap-1"
+          onClick={column.getToggleSortingHandler()}
+          title={column.getNextSortingOrder() === 'asc' ? 'Sort ascending' : column.getNextSortingOrder() === 'desc' ? 'Sort descending' : 'Clear sort'}
+        >
+          Album
+          <span className="flex items-center">
+            {column.getIsSorted() === 'asc' && <ArrowUpIcon size={14} />}
+            {column.getIsSorted() === 'desc' && <ArrowDownIcon size={14} />}
+          </span>
+        </div>
+      ),
       cell: (info) => info.getValue() as string ?? 'Unknown Album',
+      sortingFn: 'alphanumeric',
     },
     {
       accessorKey: 'durationMs',
@@ -115,9 +156,11 @@ export default function SongsView() {
     data: filteredSongs,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     onPaginationChange: setPagination,
-    state: { pagination },
+    onSortingChange: setSorting,
+    state: { pagination, sorting },
   });
 
   return (
