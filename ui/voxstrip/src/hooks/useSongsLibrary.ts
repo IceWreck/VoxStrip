@@ -17,7 +17,6 @@ export interface UseSongsLibraryReturn {
   filteredSongs: Song[];
   refresh: () => void;
   clearError: () => void;
-  reset: () => void;
 }
 
 export function useSongsLibrary(options: UseSongsLibraryOptions = {}): UseSongsLibraryReturn {
@@ -116,16 +115,6 @@ export function useSongsLibrary(options: UseSongsLibraryOptions = {}): UseSongsL
     setError(null);
   }, []);
 
-  const reset = useCallback(() => {
-    setSongs([]);
-    setTotalSize(0);
-    setSearchTerm('');
-    setError(null);
-    setLoading(false);
-    setLoadingProgress(0);
-    hasLoaded.current = false;
-  }, []);
-
   useEffect(() => {
     if (autoLoad && !hasLoaded.current && !loading && !error) {
       loadAllSongs();
@@ -143,6 +132,5 @@ export function useSongsLibrary(options: UseSongsLibraryOptions = {}): UseSongsL
     filteredSongs,
     refresh,
     clearError,
-    reset,
   };
 }
