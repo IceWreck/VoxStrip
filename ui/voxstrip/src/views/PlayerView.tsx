@@ -60,15 +60,7 @@ export default function PlayerView() {
   const songIdRef = useRef<string | null>(null);
   const coverArtUrlRef = useRef<string | null>(null);
 
-   
-  useEffect(() => {
-    if (currentSongId !== songIdRef.current) {
-      songIdRef.current = currentSongId;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSelectedVersion(DEFAULT_AUDIO_VERSION);
-    }
-  }, [currentSongId]);
-   
+
 
    
   useEffect(() => {
