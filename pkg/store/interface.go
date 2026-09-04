@@ -66,6 +66,11 @@ type Store interface {
 	// Returns nil if no pending songs are available
 	ClaimNextPendingSong(ctx context.Context) (*Song, error)
 
+	// RequeueProcessingSongs resets songs stuck in the processing state back
+	// to pending, returning how many were reset. Called on startup so songs
+	// orphaned by a crash or restart get picked up again.
+	RequeueProcessingSongs(ctx context.Context) (int, error)
+
 	// Close closes the store and releases resources
 	Close() error
 }

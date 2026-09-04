@@ -40,23 +40,36 @@ func (fs *FileSystemStore) Store(ctx context.Context, songID string, fileType Fi
 		return nil, fmt.Errorf("failed to detect content type: %w", err)
 	}
 
-	filePath := filepath.Join(fs.basePath, string(fileType), songID+ext)
+	// Write to a temp file and rename into place so a crash mid-write never
+	// leaves a truncated blob that Get would serve as valid audio.
+	dir := filepath.Join(fs.basePath, string(fileType))
+	filePath := filepath.Join(dir, songID+ext)
 
-	file, err := os.Create(filePath)
+	file, err := os.CreateTemp(dir, songID+".tmp-*")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create file: %w", err)
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
-	defer file.Close()
+	tmpPath := file.Name()
+	defer func() {
+		file.Close()
+		os.Remove(tmpPath)
+	}()
 
 	size, err := io.Copy(file, dataWithBuffer)
 	if err != nil {
-		os.Remove(filePath)
 		return nil, fmt.Errorf("failed to write data: %w", err)
 	}
 
 	stat, err := file.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file info: %w", err)
+	}
+
+	if err := file.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close temp file: %w", err)
+	}
+	if err := os.Rename(tmpPath, filePath); err != nil {
+		return nil, fmt.Errorf("failed to move blob into place: %w", err)
 	}
 
 	blobInfo := &BlobInfo{
@@ -74,7 +87,7 @@ func (fs *FileSystemStore) Store(ctx context.Context, songID string, fileType Fi
 func (fs *FileSystemStore) Get(ctx context.Context, songID string, fileType FileType) (io.ReadCloser, *BlobInfo, error) {
 	dir := filepath.Join(fs.basePath, string(fileType))
 
-	for ext, mimeType := range ExtToMime {
+	for _, ext := range sortedExts {
 		filePath := filepath.Join(dir, songID+ext)
 		if stat, err := os.Stat(filePath); err == nil {
 			file, err := os.Open(filePath)
@@ -85,11 +98,11 @@ func (fs *FileSystemStore) Get(ctx context.Context, songID string, fileType File
 			blobInfo := &BlobInfo{
 				Key:          songID,
 				Size:         stat.Size(),
-				ContentType:  mimeType,
+				ContentType:  ExtToMime[ext],
 				LastModified: stat.ModTime(),
 			}
 
-			slog.Debug("blob retrieved", "song_id", songID, "type", fileType, "size", blobInfo.Size, "mime_type", mimeType)
+			slog.Debug("blob retrieved", "song_id", songID, "type", fileType, "size", blobInfo.Size, "mime_type", blobInfo.ContentType)
 			return file, blobInfo, nil
 		}
 	}
@@ -128,12 +141,13 @@ func (fs *FileSystemStore) Delete(ctx context.Context, songID string) error {
 	return nil
 }
 
-// Exists checks if a blob exists
+// Exists checks if a blob exists without opening it.
 func (fs *FileSystemStore) Exists(ctx context.Context, songID string, fileType FileType) (bool, error) {
-	_, _, err := fs.Get(ctx, songID, fileType)
-	if err != nil && err != ErrNotFound {
-		return false, fmt.Errorf("failed to check file existence: %w", err)
+	dir := filepath.Join(fs.basePath, string(fileType))
+	for _, ext := range sortedExts {
+		if _, err := os.Stat(filepath.Join(dir, songID+ext)); err == nil {
+			return true, nil
+		}
 	}
-
-	return err != ErrNotFound, nil
+	return false, nil
 }

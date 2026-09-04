@@ -47,15 +47,16 @@ func main() {
 	// Initialize service
 	service := api.NewService(store, cfg, blobstore)
 
-	// Initialize audio processor
-	audioProcessor := processor.New(store, blobstore, *cfg)
+	// Initialize audio processor with a cancellable context so shutdown can
+	// abort in-flight processing instead of waiting out a full demucs run
+	processorCtx, cancelProcessor := context.WithCancel(context.Background())
+	defer cancelProcessor()
 
-	// Start audio processor
-	go func() {
-		if err := audioProcessor.Start(context.Background()); err != nil {
-			slog.Error("audio processor failed", "error", err)
-		}
-	}()
+	audioProcessor := processor.New(store, blobstore, *cfg)
+	if err := audioProcessor.Start(processorCtx); err != nil {
+		slog.Error("audio processor failed to start", "error", err)
+		os.Exit(1)
+	}
 
 	// Setup server
 	handler, err := api.NewServer(service, cfg)
@@ -91,9 +92,10 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	slog.Info("shutting down server...")
+	slog.Info("shutting down server")
 
-	// Stop audio processor
+	// Stop audio processor; cancelling the context kills any in-flight demucs
+	cancelProcessor()
 	if err := audioProcessor.Stop(); err != nil {
 		slog.Error("failed to stop audio processor", "error", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // demucsSeparator implements AudioSeparator using the Demucs CLI tool
@@ -48,6 +49,14 @@ func (d *demucsSeparator) separateVocals(ctx context.Context, songID, inputPath 
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+
+	// Run demucs in its own process group and kill the whole group on
+	// cancellation; wrappers like uvx would otherwise be killed alone,
+	// leaving the Python process burning CPU/GPU past the timeout.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
 
 	slog.Debug("running demucs", "command", cmdName, "args", strings.Join(cmdArgs, " "))
 

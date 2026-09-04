@@ -20,8 +20,12 @@ import (
 func NewServer(service *Service, cfg *config.Config, opts ...connect.HandlerOption) (http.Handler, error) {
 	mux := http.NewServeMux()
 
-	// Add logging interceptor
-	opts = append(opts, connect.WithInterceptors(loggingInterceptor()))
+	// Add logging interceptor and cap request size: imports carry whole audio
+	// files as proto bytes (50MB per song), anything beyond this is abuse
+	opts = append(opts,
+		connect.WithInterceptors(loggingInterceptor()),
+		connect.WithReadMaxBytes(256*1024*1024),
+	)
 
 	// Create Connect RPC handler for KaraokeService
 	path, handler := voxstripv1connect.NewKaraokeServiceHandler(service, opts...)

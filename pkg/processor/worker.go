@@ -21,18 +21,13 @@ type worker struct {
 	store     store.Store
 	blobStore blobstore.Store
 	config    config.AudioProcessingConfig
-	stopCh    chan struct{}
-	running   bool
 }
 
-// run starts the worker's main processing loop
+// run starts the worker's main processing loop; it exits when ctx is
+// cancelled.
 func (w *worker) run(ctx context.Context) {
 	slog.Info("starting audio worker", "worker_id", w.id)
-	w.running = true
-	defer func() {
-		w.running = false
-		slog.Info("audio worker stopped", "worker_id", w.id)
-	}()
+	defer slog.Info("audio worker stopped", "worker_id", w.id)
 
 	ticker := time.NewTicker(w.config.PollInterval)
 	defer ticker.Stop()
@@ -41,20 +36,11 @@ func (w *worker) run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-w.stopCh:
-			return
 		case <-ticker.C:
 			if err := w.processNextSong(ctx); err != nil {
 				slog.Error("error processing song", "worker_id", w.id, "error", err)
 			}
 		}
-	}
-}
-
-// wait blocks until the worker is stopped
-func (w *worker) wait() {
-	for w.running {
-		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -80,26 +66,62 @@ func (w *worker) processNextSong(ctx context.Context) error {
 	if err := w.processSong(processCtx, song); err != nil {
 		slog.Error("song processing failed", "worker_id", w.id, "song_id", song.ID, "error", err)
 
-		// Mark as failed
-		song.ProcessingStatus = store.ProcessingStatusFailed
-		song.ProcessingError = err.Error()
-		song.UpdatedAt = time.Now()
-		if updateErr := w.store.UpdateSong(ctx, song); updateErr != nil {
+		if updateErr := w.finishProcessing(ctx, song, store.ProcessingStatusFailed, err.Error()); updateErr != nil {
 			return fmt.Errorf("failed to mark song as failed: %w", updateErr)
 		}
 		return nil // Don't return error to continue processing other songs
 	}
 
-	// Mark as completed
-	song.ProcessingStatus = store.ProcessingStatusCompleted
-	song.ProcessingError = ""
-	song.UpdatedAt = time.Now()
-	if err := w.store.UpdateSong(ctx, song); err != nil {
+	if err := w.finishProcessing(ctx, song, store.ProcessingStatusCompleted, ""); err != nil {
 		return fmt.Errorf("failed to mark song as completed: %w", err)
 	}
 
 	slog.Info("song processing completed", "worker_id", w.id, "song_id", song.ID)
 	return nil
+}
+
+// finishProcessing writes the processing outcome onto a freshly loaded copy
+// of the song rather than the claim-time copy, so metadata edits made while
+// the song was processing are not overwritten. Tag-extracted metadata still
+// fills fields that are empty in the fresh copy.
+func (w *worker) finishProcessing(ctx context.Context, processed *store.Song, status store.ProcessingStatus, processingError string) error {
+	fresh, err := w.store.GetSong(ctx, processed.ID)
+	if err != nil {
+		// The song was deleted while processing; nothing to update.
+		slog.Warn("song vanished during processing", "song_id", processed.ID, "error", err)
+		return nil
+	}
+
+	fillEmptyMetadata(&fresh.Metadata, &processed.Metadata)
+	fresh.DurationMs = processed.DurationMs
+	fresh.ProcessingStatus = status
+	fresh.ProcessingError = processingError
+	fresh.UpdatedAt = time.Now().UTC()
+
+	return w.store.UpdateSong(ctx, fresh)
+}
+
+// fillEmptyMetadata copies values from extracted into target for fields the
+// target does not have yet.
+func fillEmptyMetadata(target, extracted *store.Metadata) {
+	if target.Title == "" {
+		target.Title = extracted.Title
+	}
+	if target.Artist == "" {
+		target.Artist = extracted.Artist
+	}
+	if target.Album == "" {
+		target.Album = extracted.Album
+	}
+	if target.AlbumArtist == "" {
+		target.AlbumArtist = extracted.AlbumArtist
+	}
+	if target.Genre == "" {
+		target.Genre = extracted.Genre
+	}
+	if target.Lyrics == "" {
+		target.Lyrics = extracted.Lyrics
+	}
 }
 
 // processSong handles the complete processing pipeline for a song
@@ -123,6 +145,16 @@ func (w *worker) processSong(ctx context.Context, song *store.Song) error {
 		return fmt.Errorf("audio separation failed: %w", err)
 	}
 
+	// Clean up temporary stems on every exit path, including store failures.
+	defer func() {
+		if err := os.Remove(vocalPath); err != nil && !os.IsNotExist(err) {
+			slog.Warn("failed to remove temporary vocal file", "file", vocalPath, "error", err)
+		}
+		if err := os.Remove(instrumentalPath); err != nil && !os.IsNotExist(err) {
+			slog.Warn("failed to remove temporary instrumental file", "file", instrumentalPath, "error", err)
+		}
+	}()
+
 	// Step 3: Write metadata to separated files
 	if err := w.writeMetadataToSeparatedFiles(ctx, song, vocalPath, instrumentalPath); err != nil {
 		slog.Warn("failed to write metadata to separated files", "song_id", song.ID, "error", err)
@@ -137,16 +169,6 @@ func (w *worker) processSong(ctx context.Context, song *store.Song) error {
 		return fmt.Errorf("failed to store instrumental file: %w", err)
 	}
 
-	// Clean up temporary separated files
-	defer func() {
-		if err := os.Remove(vocalPath); err != nil && !os.IsNotExist(err) {
-			slog.Warn("failed to remove temporary vocal file", "file", vocalPath, "error", err)
-		}
-		if err := os.Remove(instrumentalPath); err != nil && !os.IsNotExist(err) {
-			slog.Warn("failed to remove temporary instrumental file", "file", instrumentalPath, "error", err)
-		}
-	}()
-
 	return nil
 }
 
@@ -154,15 +176,13 @@ func (w *worker) processSong(ctx context.Context, song *store.Song) error {
 func (w *worker) writeMetadataToSeparatedFiles(ctx context.Context, song *store.Song, vocalPath, instrumentalPath string) error {
 	metadataExtractor := newTaglibMetadataExtractor()
 
-	// Get cover art for metadata writing
+	// Get cover art for metadata writing; a missing blob is fine.
 	var coverArt []byte
-	if exists, err := w.blobStore.Exists(ctx, song.ID, blobstore.FileTypeCoverArt); err == nil && exists {
-		if reader, _, err := w.blobStore.Get(ctx, song.ID, blobstore.FileTypeCoverArt); err == nil {
-			defer reader.Close()
-			coverBytes := new(bytes.Buffer)
-			if _, err := io.Copy(coverBytes, reader); err == nil {
-				coverArt = coverBytes.Bytes()
-			}
+	if reader, _, err := w.blobStore.Get(ctx, song.ID, blobstore.FileTypeCoverArt); err == nil {
+		defer reader.Close()
+		coverBytes := new(bytes.Buffer)
+		if _, err := io.Copy(coverBytes, reader); err == nil {
+			coverArt = coverBytes.Bytes()
 		}
 	}
 

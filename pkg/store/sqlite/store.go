@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/IceWreck/VoxStrip/pkg/store"
@@ -26,7 +25,10 @@ func NewStore(dbPath string) (store.Store, error) {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
+	// Pragmas go in the DSN so every connection gets them; one-off Execs only
+	// configure the connection they happen to run on.
+	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", dbPath)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -36,25 +38,10 @@ func NewStore(dbPath string) (store.Store, error) {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	// Enable foreign key constraints
-	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
-		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
-	}
-
 	// Configure connection pool for better concurrency
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(5 * time.Minute)
-
-	// Enable WAL mode for better concurrent access
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
-	}
-
-	// Set busy timeout to handle contention
-	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
-		return nil, fmt.Errorf("failed to set busy timeout: %w", err)
-	}
 
 	slog.Info("sqlite store initialized", "path", dbPath)
 
@@ -165,26 +152,22 @@ func (s *sqliteStore) ListSongs(ctx context.Context, opts store.ListOptions) ([]
 		return nil, "", 0, fmt.Errorf("failed to count songs: %w", err)
 	}
 
+	// Normalize the page size up front so the LIMIT and the next-token
+	// condition agree even when the client omits page_size.
+	if opts.PageSize <= 0 {
+		opts.PageSize = 50
+	}
+
 	// Build ORDER BY and LIMIT clauses
 	orderClause := "ORDER BY created_at DESC, id DESC"
 	limitClause := fmt.Sprintf("LIMIT %d", opts.PageSize)
-	if opts.PageSize <= 0 {
-		limitClause = "LIMIT 50" // Default page size
-	}
 
 	// Add cursor-based pagination if page token is provided
 	if opts.PageToken != "" {
-		// Parse composite page token: <timestamp>|<song_id>
-		parts := strings.Split(opts.PageToken, "|")
-		if len(parts) != 2 {
-			return nil, "", 0, fmt.Errorf("invalid page token format")
-		}
-
-		pageTime, err := time.Parse(time.RFC3339Nano, parts[0])
+		pageTime, songID, err := store.ParsePageToken(opts.PageToken)
 		if err != nil {
-			return nil, "", 0, fmt.Errorf("invalid page token format: %w", err)
+			return nil, "", 0, err
 		}
-		songID := parts[1]
 
 		whereClause += fmt.Sprintf(" AND (created_at < $%d OR (created_at = $%d AND id < $%d))", argIndex, argIndex+1, argIndex+2)
 		args = append(args, pageTime, pageTime, songID)
@@ -249,7 +232,7 @@ func (s *sqliteStore) ListSongs(ctx context.Context, opts store.ListOptions) ([]
 	// Generate next page token
 	var nextPageToken string
 	if len(songs) > 0 && len(songs) == opts.PageSize {
-		nextPageToken = fmt.Sprintf("%s|%s", lastCreatedAt.Format(time.RFC3339Nano), lastID)
+		nextPageToken = store.EncodePageToken(lastCreatedAt, lastID)
 	}
 
 	slog.Debug("listed songs", "count", len(songs), "total", total, "has_next", nextPageToken != "")
@@ -371,7 +354,7 @@ func (s *sqliteStore) ClaimNextPendingSong(ctx context.Context) (*store.Song, er
 		SET processing_status = ?, updated_at = ?
 		WHERE id = ? AND processing_status = ?
 	`
-	result, err := tx.ExecContext(ctx, updateQuery, int(store.ProcessingStatusProcessing), time.Now(), song.ID, int(store.ProcessingStatusPending))
+	result, err := tx.ExecContext(ctx, updateQuery, int(store.ProcessingStatusProcessing), time.Now().UTC(), song.ID, int(store.ProcessingStatusPending))
 	if err != nil {
 		return nil, fmt.Errorf("failed to claim song: %w", err)
 	}
@@ -393,4 +376,28 @@ func (s *sqliteStore) ClaimNextPendingSong(ctx context.Context) (*store.Song, er
 	song.ProcessingStatus = store.ProcessingStatusProcessing
 	slog.Debug("song claimed successfully", "id", song.ID)
 	return &song, nil
+}
+
+// RequeueProcessingSongs resets songs stuck in the processing state back to
+// pending so they get claimed again after a crash or restart.
+func (s *sqliteStore) RequeueProcessingSongs(ctx context.Context) (int, error) {
+	query := `
+		UPDATE songs
+		SET processing_status = ?, updated_at = ?
+		WHERE processing_status = ?
+	`
+	result, err := s.db.ExecContext(ctx, query,
+		int(store.ProcessingStatusPending),
+		time.Now().UTC(),
+		int(store.ProcessingStatusProcessing),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to requeue processing songs: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	return int(rowsAffected), nil
 }

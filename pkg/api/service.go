@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -116,10 +117,11 @@ func (s *Service) ImportSongs(ctx context.Context, req *connect.Request[voxstrip
 		}
 
 		// Create song with PENDING status
+		now := time.Now().UTC()
 		song := &store.Song{
 			ID:               result.SongId,
-			CreatedAt:        time.Now(),
-			UpdatedAt:        time.Now(),
+			CreatedAt:        now,
+			UpdatedAt:        now,
 			ProcessingStatus: store.ProcessingStatusPending,
 			ProcessingError:  "",
 		}
@@ -144,21 +146,14 @@ func (s *Service) ImportSongs(ctx context.Context, req *connect.Request[voxstrip
 			song.Metadata.Lyrics = *importReq.LyricsOverride
 		}
 
-		// Store audio data in blobstore - this must succeed before creating database entry
-		if len(importReq.Audio) > 0 {
-			if _, err := s.blobstore.Store(ctx, result.SongId, blobstore.FileTypeOriginal, bytes.NewReader(importReq.Audio)); err != nil {
-				slog.Error("failed to store audio data", "id", result.SongId, "error", err)
-				result.Status = voxstripv1.ProcessingStatus_PROCESSING_STATUS_FAILED
-				result.ErrorMessage = fmt.Sprintf("failed to store audio data: %v", err)
-				results[i] = result
-				continue // Skip database entry if file storage fails
-			}
-		} else {
-			slog.Error("no audio data provided", "id", result.SongId)
+		// Store audio data in blobstore - this must succeed before creating
+		// the database entry. Empty audio was already rejected by validation.
+		if _, err := s.blobstore.Store(ctx, result.SongId, blobstore.FileTypeOriginal, bytes.NewReader(importReq.Audio)); err != nil {
+			slog.Error("failed to store audio data", "id", result.SongId, "error", err)
 			result.Status = voxstripv1.ProcessingStatus_PROCESSING_STATUS_FAILED
-			result.ErrorMessage = "no audio data provided"
+			result.ErrorMessage = fmt.Sprintf("failed to store audio data: %v", err)
 			results[i] = result
-			continue // Skip database entry if no audio data
+			continue // Skip database entry if file storage fails
 		}
 
 		// Store cover art override if provided (non-critical)
@@ -176,6 +171,11 @@ func (s *Service) ImportSongs(ctx context.Context, req *connect.Request[voxstrip
 			slog.Error("failed to create song", "id", result.SongId, "error", err)
 			result.Status = voxstripv1.ProcessingStatus_PROCESSING_STATUS_FAILED
 			result.ErrorMessage = fmt.Sprintf("failed to create song: %v", err)
+
+			// Remove the stored blobs so a failed import leaves no orphans
+			if err := s.blobstore.Delete(ctx, result.SongId); err != nil {
+				slog.Warn("failed to clean up blobs for failed import", "id", result.SongId, "error", err)
+			}
 		}
 
 		results[i] = result
@@ -326,21 +326,13 @@ func (s *Service) GetCoverArt(ctx context.Context, req *connect.Request[voxstrip
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("song not found: %w", err))
 	}
 
-	// Check if cover art exists in blobstore
-	exists, err := s.blobstore.Exists(ctx, req.Msg.SongId, blobstore.FileTypeCoverArt)
-	if err != nil {
-		slog.Error("failed to check cover art existence", "id", req.Msg.SongId, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to check cover art: %w", err))
-	}
-
-	if !exists {
-		slog.Debug("no cover art available", "id", req.Msg.SongId)
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no cover art available for song"))
-	}
-
 	// Read cover art from blobstore
 	reader, blobInfo, err := s.blobstore.Get(ctx, req.Msg.SongId, blobstore.FileTypeCoverArt)
 	if err != nil {
+		if errors.Is(err, blobstore.ErrNotFound) {
+			slog.Debug("no cover art available", "id", req.Msg.SongId)
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no cover art available for song"))
+		}
 		slog.Error("failed to get cover art from blobstore", "id", req.Msg.SongId, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to retrieve cover art: %w", err))
 	}
@@ -353,11 +345,7 @@ func (s *Service) GetCoverArt(ctx context.Context, req *connect.Request[voxstrip
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to read cover art data: %w", err))
 	}
 
-	// Extract filename from content type or use default
-	filename := "cover.jpg"
-	if strings.Contains(blobInfo.ContentType, "png") {
-		filename = "cover.png"
-	}
+	filename := "cover." + blobstore.ExtensionForMime(blobInfo.ContentType)
 
 	slog.Debug("cover art retrieved", "id", req.Msg.SongId, "size", blobInfo.Size)
 	return connect.NewResponse(&voxstripv1.GetCoverArtResponse{
@@ -440,28 +428,11 @@ func (s *Service) DownloadAudio(ctx context.Context, req *connect.Request[voxstr
 	}
 
 	versionName := strings.ToLower(strings.TrimPrefix(req.Msg.Version.String(), "AUDIO_VERSION_"))
-	filename := fmt.Sprintf("%s_%s.%s", song.Metadata.Title, versionName, extensionForContentType(blobInfo.ContentType))
+	filename := fmt.Sprintf("%s_%s.%s", song.Metadata.Title, versionName, blobstore.ExtensionForMime(blobInfo.ContentType))
 
 	slog.Debug("audio download completed", "id", req.Msg.SongId, "version", req.Msg.Version, "size", blobInfo.Size)
 	return connect.NewResponse(&voxstripv1.DownloadAudioResponse{
 		Audio:    buf.Bytes(),
 		Filename: filename,
 	}), nil
-}
-
-// extensionForContentType maps an audio MIME type to a filename extension,
-// defaulting to mp3 (the format all generated stems use).
-func extensionForContentType(contentType string) string {
-	switch contentType {
-	case "audio/flac", "audio/x-flac":
-		return "flac"
-	case "audio/wav", "audio/x-wav", "audio/wave":
-		return "wav"
-	case "audio/ogg":
-		return "ogg"
-	case "audio/mp4", "audio/aac":
-		return "m4a"
-	default:
-		return "mp3"
-	}
 }

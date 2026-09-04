@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -95,17 +94,10 @@ func (s *inmemoryStore) ListSongs(ctx context.Context, opts store.ListOptions) (
 
 	start := 0
 	if opts.PageToken != "" {
-		// Parse composite page token: <timestamp>|<song_id>
-		parts := strings.Split(opts.PageToken, "|")
-		if len(parts) != 2 {
-			return nil, "", 0, fmt.Errorf("invalid page token format")
-		}
-
-		pageTime, err := time.Parse(time.RFC3339Nano, parts[0])
+		pageTime, songID, err := store.ParsePageToken(opts.PageToken)
 		if err != nil {
-			return nil, "", 0, fmt.Errorf("invalid page token format: %w", err)
+			return nil, "", 0, err
 		}
-		songID := parts[1]
 
 		for i, song := range filteredSongs {
 			if song.CreatedAt.Before(pageTime) || (song.CreatedAt.Equal(pageTime) && song.ID <= songID) {
@@ -133,7 +125,7 @@ func (s *inmemoryStore) ListSongs(ctx context.Context, opts store.ListOptions) (
 	// Generate next page token
 	var nextPageToken string
 	if end < len(filteredSongs) {
-		nextPageToken = fmt.Sprintf("%s|%s", filteredSongs[end-1].CreatedAt.Format(time.RFC3339Nano), filteredSongs[end-1].ID)
+		nextPageToken = store.EncodePageToken(filteredSongs[end-1].CreatedAt, filteredSongs[end-1].ID)
 	}
 
 	slog.Debug("listed songs from memory", "count", len(page), "total", total, "has_next", nextPageToken != "")
@@ -204,4 +196,24 @@ func (s *inmemoryStore) ClaimNextPendingSong(ctx context.Context) (*store.Song, 
 
 	slog.Debug("song claimed in memory", "id", oldestSong.ID)
 	return &songCopy, nil
+}
+
+// RequeueProcessingSongs resets songs stuck in the processing state back to
+// pending so they get claimed again after a crash or restart.
+func (s *inmemoryStore) RequeueProcessingSongs(ctx context.Context) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	count := 0
+	for id, song := range s.songs {
+		if song.ProcessingStatus != store.ProcessingStatusProcessing {
+			continue
+		}
+		songCopy := *song
+		songCopy.ProcessingStatus = store.ProcessingStatusPending
+		songCopy.UpdatedAt = time.Now().UTC()
+		s.songs[id] = &songCopy
+		count++
+	}
+	return count, nil
 }
