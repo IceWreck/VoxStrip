@@ -53,13 +53,6 @@ enum AudioVersion {
   AUDIO_VERSION_ORIGINAL = 1;     // Original uploaded file
   AUDIO_VERSION_VOCAL = 2;        // Vocals only
   AUDIO_VERSION_INSTRUMENTAL = 3; // Instrumental only
-  AUDIO_VERSION_KARAOKE = 4;      // Reduced vocals + boosted instrumental
-}
-
-enum AudioFormat {
-  AUDIO_FORMAT_UNSPECIFIED = 0; // Default value
-  AUDIO_FORMAT_MP3 = 1;         // MP3 format
-  AUDIO_FORMAT_WAV = 2;         // WAV format
 }
 
 // Import
@@ -135,16 +128,9 @@ message GetCoverArtResponse {
 message DownloadAudioRequest {
   string song_id = 1;
   AudioVersion version = 2;
-  AudioFormat output_format = 3;
-  int32 bitrate = 4; // kbps
-
-  // Only used for KARAOKE version
-  optional float vocal_reduction = 5;    // 0.0 to 1.0 (0% to 100% reduction)
-  optional float instrumental_boost = 6; // 0.0 to 1.0 (0% to 100% boost)
 }
 
 message DownloadAudioResponse {
   bytes audio = 1;
   string filename = 2;
-  AudioFormat format = 3;
 }

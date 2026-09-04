@@ -9,7 +9,7 @@ VoxStrip (Go-based AI Karaoke System)
 ├── API Layer (Connect RPC + Protocol Buffers)
 │   ├── KaraokeService: ImportSongs, ListSongs, GetSong, DeleteSong
 │   ├── Media Operations: DownloadAudio, GetCoverArt
-│   └── Audio Versions: Original, Vocal, Instrumental, Karaoke
+│   └── Audio Versions: Original, Vocal, Instrumental
 ├── Storage Layer (Repository Pattern)
 │   ├── Store Interface: CRUD operations + song claiming
 │   ├── Implementations: SQLite (prod), In-memory (dev)

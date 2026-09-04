@@ -16,7 +16,6 @@ var audioVersionFileTypes = map[string]blobstore.FileType{
 	"original":     blobstore.FileTypeOriginal,
 	"vocal":        blobstore.FileTypeVocal,
 	"instrumental": blobstore.FileTypeInstrumental,
-	"karaoke":      blobstore.FileTypeKaraoke,
 }
 
 // registerMediaRoutes adds plain HTTP media endpoints alongside the RPC

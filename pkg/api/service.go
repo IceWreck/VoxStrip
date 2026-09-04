@@ -392,7 +392,7 @@ func (s *Service) DeleteSong(ctx context.Context, req *connect.Request[voxstripv
 
 // DownloadAudio handles audio download requests
 func (s *Service) DownloadAudio(ctx context.Context, req *connect.Request[voxstripv1.DownloadAudioRequest]) (*connect.Response[voxstripv1.DownloadAudioResponse], error) {
-	slog.Debug("downloading audio", "id", req.Msg.SongId, "version", req.Msg.Version, "format", req.Msg.OutputFormat)
+	slog.Debug("downloading audio", "id", req.Msg.SongId, "version", req.Msg.Version)
 
 	// Validate song ID format
 	if err := s.validateSongID(req.Msg.SongId); err != nil {
@@ -420,8 +420,6 @@ func (s *Service) DownloadAudio(ctx context.Context, req *connect.Request[voxstr
 		fileType = blobstore.FileTypeVocal
 	case voxstripv1.AudioVersion_AUDIO_VERSION_INSTRUMENTAL:
 		fileType = blobstore.FileTypeInstrumental
-	case voxstripv1.AudioVersion_AUDIO_VERSION_KARAOKE:
-		fileType = blobstore.FileTypeKaraoke
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid audio version"))
 	}
@@ -441,18 +439,29 @@ func (s *Service) DownloadAudio(ctx context.Context, req *connect.Request[voxstr
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to read audio data: %w", err))
 	}
 
-	// Generate filename, trimming enum prefixes so the extension is usable
 	versionName := strings.ToLower(strings.TrimPrefix(req.Msg.Version.String(), "AUDIO_VERSION_"))
-	extension := strings.ToLower(strings.TrimPrefix(req.Msg.OutputFormat.String(), "AUDIO_FORMAT_"))
-	if extension == "unspecified" {
-		extension = "mp3"
-	}
-	filename := fmt.Sprintf("%s_%s.%s", song.Metadata.Title, versionName, extension)
+	filename := fmt.Sprintf("%s_%s.%s", song.Metadata.Title, versionName, extensionForContentType(blobInfo.ContentType))
 
 	slog.Debug("audio download completed", "id", req.Msg.SongId, "version", req.Msg.Version, "size", blobInfo.Size)
 	return connect.NewResponse(&voxstripv1.DownloadAudioResponse{
 		Audio:    buf.Bytes(),
 		Filename: filename,
-		Format:   req.Msg.OutputFormat,
 	}), nil
+}
+
+// extensionForContentType maps an audio MIME type to a filename extension,
+// defaulting to mp3 (the format all generated stems use).
+func extensionForContentType(contentType string) string {
+	switch contentType {
+	case "audio/flac", "audio/x-flac":
+		return "flac"
+	case "audio/wav", "audio/x-wav", "audio/wave":
+		return "wav"
+	case "audio/ogg":
+		return "ogg"
+	case "audio/mp4", "audio/aac":
+		return "m4a"
+	default:
+		return "mp3"
+	}
 }

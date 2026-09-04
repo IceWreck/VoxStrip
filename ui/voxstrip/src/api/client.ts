@@ -24,7 +24,7 @@ const transport = createConnectTransport({
 export const api = createClient(KaraokeService, transport);
 
 // Audio version names as used by the GET /media routes.
-export type AudioVersionName = 'original' | 'vocal' | 'instrumental' | 'karaoke';
+export type AudioVersionName = 'original' | 'vocal' | 'instrumental';
 
 // mediaUrl builds plain GET URLs for streaming audio and cacheable cover art.
 export const mediaUrl = {
