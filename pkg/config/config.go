@@ -32,7 +32,7 @@ type AudioProcessingConfig struct {
 	WorkerCount       int           `env:"AUDIO_WORKER_COUNT" envDefault:"2"`
 	PollInterval      time.Duration `env:"AUDIO_POLL_INTERVAL" envDefault:"5s"`
 	ProcessingTimeout time.Duration `env:"AUDIO_PROCESSING_TIMEOUT" envDefault:"20m"`
-	DemucsCommand     string        `env:"DEMUCS_COMMAND" envDefault:"uv run demucs"`
+	DemucsCommand     string        `env:"DEMUCS_COMMAND" envDefault:"uvx --with torchcodec demucs"`
 	DemucsModel       string        `env:"DEMUCS_MODEL" envDefault:"htdemucs"`
 	TempDir           string        `env:"AUDIO_TEMP_DIR" envDefault:"./temp"`
 }

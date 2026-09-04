@@ -17,9 +17,10 @@ make buf-gen        # regenerate protobuf (Go + TypeScript)
 ```
 
 The server serves the built UI from `ui/dist` in its working directory. Audio
-processing shells out to demucs; the default command (`uv run demucs`) uses the
-`pyproject.toml` in this repo, so a working [uv](https://docs.astral.sh/uv/)
-install is all you need. A GPU speeds up separation considerably.
+processing shells out to demucs; the default command
+(`uvx --with torchcodec demucs`) fetches it on demand into uv's cache, so a
+working [uv](https://docs.astral.sh/uv/) install is all you need. A GPU speeds
+up separation considerably.
 
 Or run it as a container:
 
@@ -44,7 +45,7 @@ is loaded by the Makefile). Defaults suit local use.
 | `AUDIO_WORKER_COUNT` | `2` | Concurrent processing workers |
 | `AUDIO_POLL_INTERVAL` | `5s` | How often workers look for pending songs |
 | `AUDIO_PROCESSING_TIMEOUT` | `20m` | Per-song processing time limit |
-| `DEMUCS_COMMAND` | `uv run demucs` | Command used to run demucs |
+| `DEMUCS_COMMAND` | `uvx --with torchcodec demucs` | Command used to run demucs |
 | `DEMUCS_MODEL` | `htdemucs` | Demucs model name |
 | `AUDIO_TEMP_DIR` | `./temp` | Scratch space during processing |
 
