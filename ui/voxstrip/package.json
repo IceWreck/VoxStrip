@@ -13,20 +13,20 @@
     "@bufbuild/protobuf": "^2.10.2",
     "@connectrpc/connect": "^2.1.1",
     "@connectrpc/connect-web": "^2.1.1",
-    "@tailwindcss/vite": "^4.1.18",
+    "@skeletonlabs/skeleton": "^5.0.1",
+    "@skeletonlabs/skeleton-react": "^5.0.1",
+    "@tanstack/react-query": "^5.90.2",
     "@tanstack/react-router": "^1.142.7",
     "@tanstack/react-table": "^8.21.3",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "tailwindcss": "^4.1.18"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@bufbuild/buf": "^1.61.0",
     "@bufbuild/protoc-gen-es": "^2.10.2",
     "@eslint/js": "^9.39.1",
-    "@skeletonlabs/skeleton": "^4.8.0",
-    "@skeletonlabs/skeleton-react": "^4.8.0",
+    "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
@@ -35,6 +35,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4"

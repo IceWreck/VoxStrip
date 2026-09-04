@@ -1,33 +1,20 @@
-import { getStatusBadgeConfig } from '../utils/statusHelpers.js';
-import type { ProcessingStatus } from '../api/client.js';
-import { Clock, Loader2, Check, X } from 'lucide-react';
+import { CheckIcon, ClockIcon, Loader2Icon, XIcon } from 'lucide-react';
+import { ProcessingStatus } from '../api/client';
 
-// Icon mapping
-const iconMap = {
-  Clock,
-  Loader2,
-  Check,
-  X,
-} as const;
+const STATUS_CONFIG: Record<ProcessingStatus, { classes: string; label: string; Icon: typeof CheckIcon; spin?: boolean }> = {
+  [ProcessingStatus.UNSPECIFIED]: { classes: 'preset-tonal-surface', label: 'Pending', Icon: ClockIcon },
+  [ProcessingStatus.PENDING]: { classes: 'preset-tonal-surface', label: 'Pending', Icon: ClockIcon },
+  [ProcessingStatus.PROCESSING]: { classes: 'preset-tonal-warning', label: 'Processing', Icon: Loader2Icon, spin: true },
+  [ProcessingStatus.COMPLETED]: { classes: 'preset-tonal-success', label: 'Ready', Icon: CheckIcon },
+  [ProcessingStatus.FAILED]: { classes: 'preset-tonal-error', label: 'Failed', Icon: XIcon },
+};
 
-interface StatusBadgeProps {
-  status: ProcessingStatus;
-  className?: string;
-  showIcon?: boolean;
-}
-
-export function StatusBadge({ status, className = '', showIcon = true }: StatusBadgeProps) {
-  const config = getStatusBadgeConfig(status);
-  const IconComponent = iconMap[config.icon as keyof typeof iconMap];
-
+export default function StatusBadge({ status }: { status: ProcessingStatus }) {
+  const config = STATUS_CONFIG[status] ?? STATUS_CONFIG[ProcessingStatus.UNSPECIFIED];
   return (
-    <span className={`${config.preset} badge flex items-center gap-1 ${className}`}>
-      {showIcon && IconComponent && (
-        <IconComponent size={12} className={config.icon === 'Loader2' ? 'animate-spin' : ''} />
-      )}
-      {config.text}
+    <span className={`badge ${config.classes}`}>
+      <config.Icon size={12} className={config.spin ? 'animate-spin' : ''} />
+      {config.label}
     </span>
   );
 }
-
-export default StatusBadge;

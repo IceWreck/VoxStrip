@@ -1,4 +1,4 @@
 import { createToaster } from '@skeletonlabs/skeleton-react';
 
-// Create a singleton toaster instance
-export const toaster = createToaster();
+// Singleton toaster rendered by the app shell's Toast.Group.
+export const toaster = createToaster({ placement: 'bottom-end' });

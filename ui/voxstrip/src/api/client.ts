@@ -1,225 +1,55 @@
+// The single seam between the UI and the backend. Everything the app knows
+// about ConnectRPC, media URLs, and proto serialization lives here; the rest
+// of the code deals in Song objects and plain functions.
+
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { createClient, ConnectError } from '@connectrpc/connect';
-import { KaraokeService, AudioVersion, AudioFormat } from '../proto/server_pb.js';
-import { API_CONFIG } from '../config.js';
+import { fromJson, toJson, type JsonValue } from '@bufbuild/protobuf';
+import { KaraokeService, SongSchema } from '../proto/server_pb';
+import type { Song } from '../proto/server_pb';
 
-// Create transport for Connect RPC
+export type { Song, SongMetadata } from '../proto/server_pb';
+export { ProcessingStatus } from '../proto/server_pb';
+
+// Empty means same-origin; the dev server sets VITE_API_BASE_URL instead.
+export const API_BASE: string = import.meta.env.VITE_API_BASE_URL || '';
+
 const transport = createConnectTransport({
-  baseUrl: API_CONFIG.BASE_URL,
-  fetch: (input, init) => {
-    return fetch(input, {
-      ...init,
-      credentials: 'include',
-    });
-  },
-  interceptors: [
-    (next) => async (req) => {
-      // Add timeout to requests
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT_MS);
-
-      try {
-        const response = await next({
-          ...req,
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        return response;
-      } catch (error) {
-        clearTimeout(timeoutId);
-        throw error;
-      }
-    },
-  ],
+  baseUrl: API_BASE,
+  defaultTimeoutMs: 30_000,
+  fetch: (input, init) => fetch(input, { ...init, credentials: 'include' }),
 });
 
-// Create client
-export const karaokeClient = createClient(KaraokeService, transport);
+// api is the typed ConnectRPC client for all KaraokeService methods.
+export const api = createClient(KaraokeService, transport);
 
-// Helper functions for common operations
-export class VoxStripAPI {
-  /**
-   * List songs with pagination and optional filtering
-   */
-  static async listSongs(options: {
-    pageSize?: number;
-    pageToken?: string;
-    statusFilter?: import('../proto/server_pb.js').ProcessingStatus;
-  } = {}) {
-    const { pageSize, pageToken, statusFilter } = options;
-    
-    try {
-      const response = await karaokeClient.listSongs({
-        pageSize: pageSize || 20,
-        pageToken: pageToken || '',
-        statusFilter,
-      });
+// Audio version names as used by the GET /media routes.
+export type AudioVersionName = 'original' | 'vocal' | 'instrumental' | 'karaoke';
 
-      return response;
-    } catch (error) {
-      throw handleAPIError(error);
-    }
-  }
+// mediaUrl builds plain GET URLs for streaming audio and cacheable cover art.
+export const mediaUrl = {
+  cover: (songId: string) => `${API_BASE}/media/${songId}/cover`,
+  audio: (songId: string, version: AudioVersionName) => `${API_BASE}/media/${songId}/audio/${version}`,
+};
 
-  /**
-   * Get a specific song by ID
-   */
-  static async getSong(songId: string) {
-    try {
-      const response = await karaokeClient.getSong({
-        songId,
-      });
+// songToJSON/songFromJSON convert songs for localStorage persistence and
+// BroadcastChannel transfer, where proto messages (bigint fields) can't be
+// used directly.
+export function songToJSON(song: Song): JsonValue {
+  return toJson(SongSchema, song);
+}
 
-      return response.song;
-    } catch (error) {
-      throw handleAPIError(error);
-    }
-  }
-
-  /**
-   * Delete a song by ID
-   */
-  static async deleteSong(songId: string) {
-    try {
-      const response = await karaokeClient.deleteSong({
-        songId,
-      });
-
-      return response;
-    } catch (error) {
-      throw handleAPIError(error);
-    }
-  }
-
-  /**
-   * Import multiple songs with optional metadata overrides
-   */
-  static async importSongs(pendingFiles: Array<{
-    file: File;
-    overrides?: {
-      title?: string;
-      artist?: string;
-      album?: string;
-      albumArtist?: string;
-      genre?: string;
-      lyrics?: string;
-      coverArtFile?: File;
-    };
-  }>) {
-    const importRequests = await Promise.all(
-      pendingFiles.map(async (pending) => {
-        const audioBuffer = await pending.file.arrayBuffer();
-        const audioBytes = new Uint8Array(audioBuffer);
-
-        const overrides = pending.overrides || {};
-        let coverArtBytes: Uint8Array | undefined;
-
-        if (overrides.coverArtFile) {
-          const coverBuffer = await overrides.coverArtFile.arrayBuffer();
-          coverArtBytes = new Uint8Array(coverBuffer);
-        }
-
-        return {
-          audio: audioBytes,
-          titleOverride: overrides.title,
-          artistOverride: overrides.artist,
-          albumOverride: overrides.album,
-          albumArtistOverride: overrides.albumArtist,
-          genreOverride: overrides.genre,
-          lyricsOverride: overrides.lyrics,
-          coverArtOverride: coverArtBytes,
-        };
-      })
-    );
-
-    try {
-      const response = await karaokeClient.importSongs({
-        songs: importRequests,
-      });
-
-      return response;
-    } catch (error) {
-      throw handleAPIError(error);
-    }
-  }
-
-  /**
-   * Download audio file for a specific song and version
-   */
-  static async downloadAudio(options: {
-    songId: string;
-    version: AudioVersion;
-    format?: AudioFormat;
-    bitrate?: number;
-  }) {
-    const { songId, version, format = AudioFormat.MP3, bitrate = 320 } = options;
-    
-    try {
-      const response = await karaokeClient.downloadAudio({
-        songId,
-        version,
-        outputFormat: format,
-        bitrate,
-      });
-
-      return response;
-    } catch (error) {
-      throw handleAPIError(error);
-    }
-  }
-
-  /**
-   * Get cover art for a song
-   */
-  static async getCoverArt(songId: string) {
-    try {
-      const response = await karaokeClient.getCoverArt({
-        songId,
-      });
-      return response;
-    } catch (error) {
-      throw handleAPIError(error);
-    }
-  }
-
-  /**
-   * Get cover art URL for a song (for legacy use with img tags)
-   */
-  static getCoverArtUrl(songId: string): string {
-    return `${API_CONFIG.BASE_URL}/v1/songs/${songId}/cover-art`;
+export function songFromJSON(json: JsonValue): Song | null {
+  try {
+    return fromJson(SongSchema, json);
+  } catch {
+    return null;
   }
 }
 
-// Export types for use in components
-export type Song = import('../proto/server_pb.js').Song;
-export type SongMetadata = import('../proto/server_pb.js').SongMetadata;
-export type ProcessingStatus = import('../proto/server_pb.js').ProcessingStatus;
-export type { AudioVersion, AudioFormat } from '../proto/server_pb.js';
-
-// Error handling utilities
-export class APIError extends Error {
-  constructor(
-    message: string,
-    public statusCode?: number,
-    public code?: string
-  ) {
-    super(message);
-    this.name = 'APIError';
-  }
-}
-
-// Helper to extract error information from API responses
-export function handleAPIError(error: unknown): APIError {
-  // Convert to ConnectError if it's not already one
-  const connectError = ConnectError.from(error);
-  
-  if (connectError instanceof ConnectError) {
-    return new APIError(
-      connectError.rawMessage || connectError.message,
-      Number(connectError.code),
-      String(connectError.code)
-    );
-  }
-
-  return new APIError('An unexpected error occurred');
+// errorMessage extracts a human-readable message from any thrown API error.
+export function errorMessage(error: unknown): string {
+  if (error instanceof ConnectError) return error.rawMessage || error.message;
+  if (error instanceof Error) return error.message;
+  return 'unexpected error';
 }

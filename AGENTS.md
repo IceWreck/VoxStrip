@@ -43,6 +43,8 @@ The audio processing pipeline consists of a coordinator in `pkg/processor` that 
 The UI layer is built with React and Skeleton.dev, located at `ui/voxstrip/`. It includes a generated TypeScript client at `ui/voxstrip/src/proto/` that provides type-safe access to the Connect RPC API. This enables seamless communication between the frontend and backend while maintaining consistency across the stack.
 We are using Tanstack Router for routing between pages and Tanstack table for displaying a table.
 
+UI styling references: Tailwind CSS docs at https://tailwindcss.com/ and Skeleton (React) docs at https://www.skeleton.dev/docs/react/get-started/introduction
+
 Configuration management in `pkg/config/config.go` uses environment-based settings for server parameters (host, port, CORS), storage paths, and audio processing options (worker count, timeouts). The system validates input sizes, enforces UUID-based song identification, and implements comprehensive error handling throughout all layers.
 
 ## Coding Conventions

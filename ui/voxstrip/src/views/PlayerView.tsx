@@ -1,219 +1,60 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Avatar, Slider, SegmentedControl } from '@skeletonlabs/skeleton-react';
-import { toaster } from '../toaster.js';
+import { SegmentedControl, Slider } from '@skeletonlabs/skeleton-react';
 import {
-  PlayIcon,
+  ListMusicIcon,
+  MicVocalIcon,
+  MinusIcon,
+  MonitorUpIcon,
   PauseIcon,
+  PlayIcon,
+  PlusIcon,
   SkipBackIcon,
   SkipForwardIcon,
   Volume2Icon,
   VolumeXIcon,
-  ListIcon
 } from 'lucide-react';
-import { VoxStripAPI } from '../api/client.js';
-import { useAppContext } from '../router/context.js';
-import {
-  AUDIO_VERSIONS,
-  DEFAULT_AUDIO_VERSION,
-  type AudioVersionKey,
-  getAudioVersionKeys,
-} from '../config.js';
-import { isProcessingComplete } from '../utils/statusHelpers.js';
-import { getDominantColors } from '../utils/imageUtils.js';
+import { usePlayer } from '../player/store';
+import { activeLineIndex, parseLyrics } from '../lib/lyrics';
+import { useCoverColors } from '../lib/useCoverColors';
+import { formatTime } from '../lib/format';
+import { toaster } from '../toaster';
+import CoverArt from '../components/CoverArt';
+import LyricsDisplay from '../components/LyricsDisplay';
+import type { PlayMode } from '../player/engine';
 
-type LyricLine = {
-  time: number;
-  text: string;
-};
+const LYRICS_NUDGE_MS = 250;
 
-const parseLyrics = (lyrics?: string): LyricLine[] => {
-  if (!lyrics) return [];
+function openStageWindow() {
+  window.open('/stage', 'voxstrip-stage', 'popup,width=1280,height=720');
+}
 
-  const lines = lyrics.split('\n');
-  const parsed: LyricLine[] = [];
-
-  for (const line of lines) {
-    const match = line.match(/\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/);
-    if (match) {
-      const minutes = Number(match[1]);
-      const seconds = Number(match[2]);
-      const milliseconds = Number(match[3].padEnd(3, '0').slice(0, 3));
-      const time = minutes * 60 + seconds + milliseconds / 1000;
-      const text = match[4].trim();
-      if (text) {
-        parsed.push({ time, text });
-      }
-    } else if (line.trim()) {
-      parsed.push({ time: -1, text: line.trim() });
-    }
-  }
-
-  return parsed;
-};
-
+// PlayerView is the main karaoke screen: synced lyrics over an album-art
+// gradient, with playback, vocal-guide blend, and stage display controls.
 export default function PlayerView() {
-  const { queue, audioPlayer } = useAppContext();
-  const currentSong = queue.currentSong;
-  const [selectedVersion, setSelectedVersion] = useState<AudioVersionKey>(DEFAULT_AUDIO_VERSION);
-  const [coverArtUrl, setCoverArtUrl] = useState('/placeholder-album.png');
-  const [dominantColors, setDominantColors] = useState(['#1a1a1a', '#2d2d2d', '#404040']);
-  const coverArtUrlRef = useRef<string | null>(null);
+  const player = usePlayer();
+  const { currentSong, engine } = player;
+  const colors = useCoverColors(currentSong?.songId ?? null);
 
-
-
-   
-  useEffect(() => {
-    if (!currentSong) {
-      if (coverArtUrlRef.current) {
-        URL.revokeObjectURL(coverArtUrlRef.current);
-        coverArtUrlRef.current = null;
-      }
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCoverArtUrl('/placeholder-album.png');
-      setDominantColors(['#1a1a1a', '#2d2d2d', '#404040']);
-      return;
-    }
-
-    let mounted = true;
-
-    const loadCoverArt = async () => {
-      try {
-        const response = await VoxStripAPI.getCoverArt(currentSong.songId);
-        if (!mounted) return;
-        if (coverArtUrlRef.current) {
-          URL.revokeObjectURL(coverArtUrlRef.current);
-        }
-        const blob = new Blob([new Uint8Array(response.image)], { type: 'image/jpeg' });
-        const url = URL.createObjectURL(blob);
-        coverArtUrlRef.current = url;
-        setCoverArtUrl(url);
-
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = url;
-        img.onload = async () => {
-          if (!mounted) return;
-          const colors = await getDominantColors(img);
-          console.log('Dominant colors extracted:', colors);
-          if (mounted) {
-            setDominantColors(colors);
-          }
-        };
-      } catch (error) {
-        console.error('Failed to load cover art:', error);
-        if (mounted) {
-          setCoverArtUrl('/placeholder-album.png');
-          setDominantColors(['#1a1a1a', '#2d2d2d', '#404040']);
-        }
-        if (coverArtUrlRef.current) {
-          URL.revokeObjectURL(coverArtUrlRef.current);
-          coverArtUrlRef.current = null;
-        }
-      }
-    };
-
-    loadCoverArt();
-
-    return () => {
-      mounted = false;
-    };
-  }, [currentSong]);
-   
-
-  // Show error as toast when audioPlayer.error changes
-  useEffect(() => {
-    if (audioPlayer.error) {
-      toaster.error({
-        title: "Playback Error",
-        description: audioPlayer.error
-      });
-    }
-  }, [audioPlayer.error]);
+  const lyrics = useMemo(() => parseLyrics(currentSong?.metadata?.lyrics), [currentSong?.metadata?.lyrics]);
+  const activeIndex = activeLineIndex(lyrics, engine.currentTime, player.lyricsOffsetMs);
 
   useEffect(() => {
-    const song = currentSong;
-    if (!song) return;
-    if (audioPlayer.currentSong?.songId !== song.songId) return;
-    if (audioPlayer.currentVersion === selectedVersion) return;
-    audioPlayer.loadSong(song, selectedVersion);
-  }, [selectedVersion, currentSong, audioPlayer]);
-
-  useEffect(() => () => {
-    if (coverArtUrlRef.current) {
-      URL.revokeObjectURL(coverArtUrlRef.current);
+    if (engine.error) {
+      toaster.error({ title: 'Playback error', description: engine.error });
     }
-  }, []);
-
-  const lyricsLines = useMemo(
-    () => parseLyrics(currentSong?.metadata?.lyrics),
-    [currentSong?.metadata?.lyrics],
-  );
-
-  const currentLyricIndex = useMemo(() => {
-    return lyricsLines.findIndex((line, index) => {
-      const next = lyricsLines[index + 1];
-      return line.time >= 0 && line.time <= audioPlayer.currentTime && (!next || next.time > audioPlayer.currentTime);
-    });
-  }, [lyricsLines, audioPlayer.currentTime]);
-
-  const handleVersionChange = (version: AudioVersionKey) => {
-    setSelectedVersion(version);
-  };
-
-  const handlePlayPause = () => {
-    if (!currentSong) {
-      if (queue.items.length > 0) {
-        queue.jumpToIndex(0);
-      }
-      return;
-    }
-
-    queue.setIsPlaying(!queue.isPlaying);
-  };
-
-  const handleNext = () => {
-    if (queue.items.length === 0) return;
-
-    if (queue.currentIndex === queue.items.length - 1) {
-      return;
-    }
-
-    queue.playNext();
-  };
-
-  const handlePrevious = () => {
-    queue.playPrevious();
-  };
-
-  // handleSeek is no longer needed since we use Slider's onValueChange
-
-  const canSkipBackward = queue.currentIndex > 0;
-  const canSkipForward = queue.currentIndex < queue.items.length - 1;
-
-  // Prepare lyrics sections for centered display
-  const previousLyrics = lyricsLines.slice(Math.max(0, currentLyricIndex - 2), currentLyricIndex);
-  const currentLyric = currentLyricIndex >= 0 ? lyricsLines[currentLyricIndex]?.text : '';
-  const nextLyrics = lyricsLines.slice(currentLyricIndex + 1, currentLyricIndex + 3);
-
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  }, [engine.error]);
 
   if (!currentSong) {
     return (
-      <div className="min-h-[100vh] flex items-center justify-center p-4 sm:p-8 pb-[180px] sm:pb-[200px]">
-        <div className="card preset-tonal-surface p-12 text-center max-w-md">
-          <div className="w-32 h-32 mx-auto mb-8 rounded-full bg-surface-200-800 flex items-center justify-center">
-            <div className="w-16 h-16 bg-surface-400-600 rounded-full flex items-center justify-center">
-              <PlayIcon className="w-8 h-8 text-surface-600-400" />
-            </div>
+      <div className="flex h-full items-center justify-center p-8">
+        <div className="card preset-tonal-surface flex max-w-md flex-col items-center gap-6 p-12 text-center">
+          <PlayIcon className="size-16 text-surface-500" />
+          <div>
+            <h2 className="h3 mb-2">Nothing playing</h2>
+            <p className="text-surface-600-400">Queue up some songs to start the karaoke.</p>
           </div>
-          <h3 className="h2 mb-4">No song playing</h3>
-          <p className="text-surface-600-400 mb-8">Add songs to your queue to start playing</p>
-          <Link to="/" className="btn preset-filled">
+          <Link to="/songs" className="btn preset-filled-primary-500">
             Browse Songs
           </Link>
         </div>
@@ -222,72 +63,117 @@ export default function PlayerView() {
   }
 
   return (
-    <>
-      {/* Fixed background setup: gradient covers entire viewport including sidebar area.
-         The <main> element in App.tsx has no background to allow this to show through.
-         Gradient uses dominant colors from album art extracted at load time. */}
+    <div className="relative flex h-full flex-col overflow-hidden">
+      {/* Album-art gradient backdrop with a darkening overlay for contrast. */}
       <div
-        className="fixed inset-0 -z-50"
-        style={{
-          background: `linear-gradient(135deg, ${dominantColors[0]}, ${dominantColors[1]}, ${dominantColors[2]})`,
-        }}
+        className="absolute inset-0"
+        style={{ background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]}, ${colors[2]})` }}
       />
-      {/* Overlay to darken background for better text readability */}
-      <div className="fixed inset-0 -z-40" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} />
+      <div className="absolute inset-0 bg-black/55" />
 
-        <div className="min-h-[100vh] flex flex-col relative overflow-hidden">
-        {/* Full-height Lyrics Display */}
-        <div className="flex-1 flex items-center justify-center p-4 sm:p-8 pb-[180px] sm:pb-[200px] overflow-hidden relative z-10">
-          <div className="max-w-5xl w-full space-y-6 sm:space-y-8">
-            {/* Previous lyrics - faded */}
-            <div className="space-y-2 text-center opacity-40 min-h-[80px]">
-              {previousLyrics.map((line, index) => (
-                <p key={`prev-${line.time}-${index}`} className="text-xl sm:text-2xl md:text-3xl font-light text-white">
-                  {line.text}
-                </p>
-              ))}
-            </div>
-
-            {/* Current lyric - highlighted and large */}
-            <div className="text-center min-h-[120px] flex items-center justify-center">
-              {currentLyric && (
-                <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white
-                               transition-all duration-500 transform scale-105 px-4 drop-shadow-2xl">
-                  {currentLyric}
-                </p>
-              )}
-            </div>
-
-          {/* Next lyrics - more emphasized than previous to show upcoming */}
-          <div className="space-y-2 text-center opacity-75 min-h-[100px]">
-            {nextLyrics.map((line, index) => (
-              <p key={`next-${line.time}-${index}`} className="text-xl sm:text-2xl md:text-3xl font-medium text-white">
-                {line.text}
-              </p>
-            ))}
-          </div>
-          </div>
+      <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center p-6">
+        <div className="max-h-full w-full max-w-5xl">
+          <LyricsDisplay lyrics={lyrics} activeIndex={activeIndex} onLineClick={(t) => player.seek(t)} />
         </div>
+      </div>
 
-        {/* Fixed Bottom Controls Bar - Spans full width of main area */}
-        <div className="fixed bottom-0 left-0 lg:left-64 right-0 flex-shrink-0 bg-surface-100-900/90 backdrop-blur-sm border-t border-surface-200-800 shadow-lg z-40">
-          <div className="p-4 sm:p-6 w-full">
-            {/* Progress Bar - Time labels */}
-            <div className="mb-2 w-full">
-              <div className="flex justify-between text-xs sm:text-sm font-mono text-surface-600-400">
-                <span>{formatTime(audioPlayer.currentTime)}</span>
-                <span>{formatTime(audioPlayer.duration || 0)}</span>
-              </div>
+      <div className="relative z-10 border-t border-white/10 bg-surface-50-950/80 p-4 backdrop-blur-md">
+        <div className="mb-1 flex justify-between font-mono text-xs text-surface-600-400">
+          <span>{formatTime(engine.currentTime)}</span>
+          <span>{formatTime(engine.duration)}</span>
+        </div>
+        <Slider
+          value={[engine.currentTime]}
+          max={engine.duration || 1}
+          step={0.5}
+          onValueChange={(details) => player.seek(details.value[0])}
+          className="mb-4"
+          aria-label={['Seek']}
+        >
+          <Slider.Control>
+            <Slider.Track>
+              <Slider.Range />
+            </Slider.Track>
+            <Slider.Thumb index={0}>
+              <Slider.HiddenInput />
+            </Slider.Thumb>
+          </Slider.Control>
+        </Slider>
+
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          {/* Song identity + transport */}
+          <div className="flex items-center gap-3">
+            <CoverArt
+              key={currentSong.songId}
+              songId={currentSong.songId}
+              alt=""
+              className="hidden size-12 rounded-base sm:block"
+            />
+            <div className="hidden w-44 sm:block">
+              <p className="truncate text-sm font-semibold">{currentSong.metadata?.title || 'Unknown Title'}</p>
+              <p className="truncate text-xs text-surface-600-400">
+                {currentSong.metadata?.artist || 'Unknown Artist'}
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={player.previous}
+              disabled={player.currentIndex <= 0}
+              className="btn-icon hover:preset-tonal disabled:opacity-40"
+              aria-label="Previous"
+            >
+              <SkipBackIcon className="size-5" />
+            </button>
+            <button
+              type="button"
+              onClick={player.togglePlay}
+              className="btn-icon btn-icon-lg preset-filled-primary-500 shadow-lg"
+              aria-label={engine.isPlaying ? 'Pause' : 'Play'}
+            >
+              {engine.isPlaying ? <PauseIcon className="size-6" /> : <PlayIcon className="size-6" />}
+            </button>
+            <button
+              type="button"
+              onClick={player.next}
+              disabled={player.currentIndex >= player.queue.length - 1}
+              className="btn-icon hover:preset-tonal disabled:opacity-40"
+              aria-label="Next"
+            >
+              <SkipForwardIcon className="size-5" />
+            </button>
+          </div>
 
-            {/* Progress Bar - Using Skeleton Slider */}
-            <div className="mb-4 w-full">
+          {/* Mode + vocal guide blend */}
+          <div className="flex items-center gap-4">
+            <SegmentedControl
+              value={player.mode}
+              onValueChange={(details) => player.setMode(details.value as PlayMode)}
+            >
+              <SegmentedControl.Control>
+                <SegmentedControl.Indicator />
+                <SegmentedControl.Item value="stems">
+                  <SegmentedControl.ItemText className="text-xs">Karaoke</SegmentedControl.ItemText>
+                  <SegmentedControl.ItemHiddenInput />
+                </SegmentedControl.Item>
+                <SegmentedControl.Item value="original">
+                  <SegmentedControl.ItemText className="text-xs">Original</SegmentedControl.ItemText>
+                  <SegmentedControl.ItemHiddenInput />
+                </SegmentedControl.Item>
+              </SegmentedControl.Control>
+            </SegmentedControl>
+
+            <div
+              className={`flex items-center gap-2 ${player.mode === 'original' ? 'pointer-events-none opacity-40' : ''}`}
+              title="Guide vocals level"
+            >
+              <MicVocalIcon className="size-4 shrink-0 text-surface-600-400" />
               <Slider
-                value={[audioPlayer.currentTime || 0]}
-                max={audioPlayer.duration || 100}
-                step={1}
-                onValueChange={(details) => audioPlayer.seek(details.value[0])}
-                className="w-full"
+                value={[player.vocalLevel * 100]}
+                max={100}
+                step={5}
+                onValueChange={(details) => player.setVocalLevel(details.value[0] / 100)}
+                className="w-28"
+                aria-label={['Guide vocal level']}
               >
                 <Slider.Control>
                   <Slider.Track>
@@ -298,108 +184,77 @@ export default function PlayerView() {
                   </Slider.Thumb>
                 </Slider.Control>
               </Slider>
+              <span className="w-8 font-mono text-xs text-surface-600-400">{Math.round(player.vocalLevel * 100)}%</span>
             </div>
+          </div>
 
-            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 w-full">
-              {/* Left Side: Song Info and Basic Controls */}
-              <div className="flex items-center gap-4 flex-shrink-0">
-                {/* Album Art */}
-                <Avatar className="w-12 h-12 flex-shrink-0">
-                  <Avatar.Image src={coverArtUrl} alt="Album art" />
-                  <Avatar.Fallback className="text-lg">♪</Avatar.Fallback>
-                </Avatar>
+          {/* Volume, lyric offset, stage, queue */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => player.setVolume(player.volume > 0 ? 0 : 1)}
+              className="btn-icon hover:preset-tonal"
+              aria-label="Toggle mute"
+            >
+              {player.volume > 0 ? <Volume2Icon className="size-4" /> : <VolumeXIcon className="size-4" />}
+            </button>
+            <Slider
+              value={[player.volume * 100]}
+              max={100}
+              step={5}
+              onValueChange={(details) => player.setVolume(details.value[0] / 100)}
+              className="w-24"
+              aria-label={['Volume']}
+            >
+              <Slider.Control>
+                <Slider.Track>
+                  <Slider.Range />
+                </Slider.Track>
+                <Slider.Thumb index={0}>
+                  <Slider.HiddenInput />
+                </Slider.Thumb>
+              </Slider.Control>
+            </Slider>
 
-                {/* Song Info */}
-                <div className="w-56 hidden sm:block">
-                  <h2 className="font-semibold text-sm truncate">{currentSong.metadata?.title || 'Unknown Title'}</h2>
-                  <p className="text-xs text-surface-600-400 truncate">{currentSong.metadata?.artist || 'Unknown Artist'}</p>
-                </div>
-
-                {/* Control Buttons */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handlePrevious}
-                    disabled={!canSkipBackward}
-                    className="btn btn-icon btn-icon-sm preset-tonal disabled:opacity-50"
-                  >
-                    <SkipBackIcon className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={handlePlayPause}
-                    className="btn btn-icon btn-icon-lg preset-filled shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-                  >
-                    {queue.isPlaying ? (
-                      <PauseIcon className="w-6 h-6" />
-                    ) : (
-                      <PlayIcon className="w-6 h-6" />
-                    )}
-                  </button>
-                  <button
-                    onClick={handleNext}
-                    disabled={!canSkipForward}
-                    className="btn btn-icon btn-icon-sm preset-tonal disabled:opacity-50"
-                  >
-                    <SkipForwardIcon className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Center: Audio Version Selection - Using Skeleton SegmentedControl */}
-              <div className="flex-1 flex justify-center lg:px-4 min-w-0">
-                <SegmentedControl
-                  value={selectedVersion}
-                  onValueChange={(details) => handleVersionChange(details.value as AudioVersionKey)}
-                  disabled={!isProcessingComplete(currentSong.processingStatus)}
-                  className="w-full"
+            {lyrics.synced && (
+              <div className="flex items-center gap-1" title="Nudge lyrics timing">
+                <button
+                  type="button"
+                  onClick={() => player.setLyricsOffsetMs(player.lyricsOffsetMs - LYRICS_NUDGE_MS)}
+                  className="btn-icon btn-icon-sm hover:preset-tonal"
+                  aria-label="Lyrics earlier"
                 >
-                  <SegmentedControl.Control>
-                    <SegmentedControl.Indicator />
-                    {getAudioVersionKeys().map((key) => (
-                      <SegmentedControl.Item key={key} value={key}>
-                        <SegmentedControl.ItemText className="text-xs sm:text-sm">
-                          {AUDIO_VERSIONS[key].label}
-                        </SegmentedControl.ItemText>
-                        <SegmentedControl.ItemHiddenInput />
-                      </SegmentedControl.Item>
-                    ))}
-                  </SegmentedControl.Control>
-                </SegmentedControl>
+                  <MinusIcon className="size-3" />
+                </button>
+                <span className="w-14 text-center font-mono text-xs text-surface-600-400">
+                  {player.lyricsOffsetMs > 0 ? '+' : ''}
+                  {player.lyricsOffsetMs} ms
+                </span>
+                <button
+                  type="button"
+                  onClick={() => player.setLyricsOffsetMs(player.lyricsOffsetMs + LYRICS_NUDGE_MS)}
+                  className="btn-icon btn-icon-sm hover:preset-tonal"
+                  aria-label="Lyrics later"
+                >
+                  <PlusIcon className="size-3" />
+                </button>
               </div>
+            )}
 
-              {/* Right Side: Volume and Additional Controls */}
-              <div className="flex items-center justify-end gap-3 flex-shrink-0">
-
-                {/* Volume Control */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => audioPlayer.setVolume(audioPlayer.volume > 0 ? 0 : 1)}
-                    className="btn btn-icon preset-ghost"
-                  >
-                    {audioPlayer.volume > 0 ? (
-                      <Volume2Icon className="w-4 h-4" />
-                    ) : (
-                      <VolumeXIcon className="w-4 h-4" />
-                    )}
-                  </button>
-                  <div className="w-24">
-                    <Slider
-                      value={[audioPlayer.volume]}
-                      max={1}
-                      step={0.05}
-                      onValueChange={(details) => audioPlayer.setVolume(details.value[0])}
-                    />
-                  </div>
-                </div>
-
-                {/* Queue Button */}
-                <Link to="/queue" className="btn btn-icon preset-tonal" title="View Queue">
-                  <ListIcon className="w-4 h-4" />
-                </Link>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={openStageWindow}
+              className="btn-icon hover:preset-tonal"
+              title="Open stage display (drag to your TV, then click it for fullscreen)"
+            >
+              <MonitorUpIcon className="size-4" />
+            </button>
+            <Link to="/queue" className="btn-icon hover:preset-tonal" title="View queue">
+              <ListMusicIcon className="size-4" />
+            </Link>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

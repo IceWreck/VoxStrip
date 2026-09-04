@@ -1,156 +1,174 @@
-import type { Song } from '../api/client.js';
-import { formatDuration } from '../utils/formatters.js';
-import { SearchIcon, PlusIcon, RefreshCwIcon, Trash2Icon, XIcon, ChevronLeftIcon, ChevronRightIcon, ArrowUpIcon, ArrowDownIcon } from 'lucide-react';
-import { useSongsLibrary } from '../hooks/useSongsLibrary.js';
-import { useAppContext } from '../router/context.js';
-import { UI_CONFIG } from '../config.js';
-import StatusBadge from '../components/StatusBadge.js';
-import { isProcessingComplete } from '../utils/statusHelpers.js';
-import { toaster } from '../toaster.js';
-import { VoxStripAPI } from '../api/client.js';
-import { Dialog, Portal, Progress } from '@skeletonlabs/skeleton-react';
-import { useReactTable, getCoreRowModel, getPaginationRowModel, getSortedRowModel, flexRender, type ColumnDef, type PaginationState, type SortingState } from '@tanstack/react-table';
-import { useState, useMemo, useCallback } from 'react';
+import { useMemo, useState } from 'react';
+import {
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from '@tanstack/react-table';
+import { Progress } from '@skeletonlabs/skeleton-react';
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ListPlusIcon,
+  PencilIcon,
+  PlayIcon,
+  RefreshCwIcon,
+  SearchIcon,
+  Trash2Icon,
+} from 'lucide-react';
+import { ProcessingStatus, errorMessage, type Song } from '../api/client';
+import { useDeleteSong, useSongs, useUpdateSong } from '../queries/songs';
+import { usePlayer } from '../player/store';
+import { formatDuration } from '../lib/format';
+import { toaster } from '../toaster';
+import CoverArt from '../components/CoverArt';
+import StatusBadge from '../components/StatusBadge';
+import ConfirmDialog from '../components/ConfirmDialog';
+import MetadataDialog, { type SongMetadataFields } from '../components/MetadataDialog';
+
+const PAGE_SIZES = [15, 50, 100];
+
+function matchesSearch(song: Song, term: string): boolean {
+  const metadata = song.metadata;
+  if (!metadata) return false;
+  return [metadata.title, metadata.artist, metadata.album, metadata.genre].some((field) =>
+    field?.toLowerCase().includes(term),
+  );
+}
+
+function SortableHeader({ label, column }: { label: string; column: { getToggleSortingHandler: () => ((event: unknown) => void) | undefined; getIsSorted: () => false | 'asc' | 'desc' } }) {
+  const sorted = column.getIsSorted();
+  return (
+    <button
+      type="button"
+      className="flex select-none items-center gap-1 font-medium"
+      onClick={column.getToggleSortingHandler()}
+    >
+      {label}
+      {sorted === 'asc' && <ArrowUpIcon size={14} />}
+      {sorted === 'desc' && <ArrowDownIcon size={14} />}
+    </button>
+  );
+}
 
 export default function SongsView() {
-  const { queue } = useAppContext();
-  const {
-    totalSize,
-    loading,
-    loadingProgress,
-    error,
-    searchTerm,
-    setSearchTerm,
-    filteredSongs,
-    refresh,
-    clearError,
-  } = useSongsLibrary();
+  const { data: songs, isLoading, error, refetch, isRefetching } = useSongs();
+  const deleteSong = useDeleteSong();
+  const updateSong = useUpdateSong();
+  const player = usePlayer();
 
-  const [songToDelete, setSongToDelete] = useState<Song | null>(null);
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: UI_CONFIG.DEFAULT_PAGE_SIZE,
-  });
-
+  const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [songToDelete, setSongToDelete] = useState<Song | null>(null);
+  const [songToEdit, setSongToEdit] = useState<Song | null>(null);
 
-  const handleAddToQueue = useCallback((song: Song) => {
-    queue.addToQueue(song);
+  const filteredSongs = useMemo(() => {
+    const all = songs ?? [];
+    const term = searchTerm.trim().toLowerCase();
+    return term ? all.filter((song) => matchesSearch(song, term)) : all;
+  }, [songs, searchTerm]);
 
-    toaster.success({
-      title: "Added to Queue",
-      description: `"${song.metadata?.title}" by ${song.metadata?.artist || 'Unknown Artist'}`
-    });
-  }, [queue]);
-
-  const handleDelete = async () => {
-    if (!songToDelete) return;
-
-    try {
-      await VoxStripAPI.deleteSong(songToDelete.songId);
-      toaster.success({
-        title: "Song Deleted",
-        description: `"${songToDelete.metadata?.title}" removed from library`
-      });
-      refresh();
-    } catch (error) {
-      toaster.error({
-        title: "Delete Failed",
-        description: error instanceof Error ? error.message : "Unknown error"
-      });
-    } finally {
-      setSongToDelete(null);
-    }
-  };
-
-  const columns = useMemo<ColumnDef<Song>[]>(() => [
-    {
-      accessorKey: 'metadata.title',
-      header: ({ column }) => (
-        <div
-          className="cursor-pointer select-none flex items-center gap-1"
-          onClick={column.getToggleSortingHandler()}
-          title={column.getNextSortingOrder() === 'asc' ? 'Sort ascending' : column.getNextSortingOrder() === 'desc' ? 'Sort descending' : 'Clear sort'}
-        >
-          Title
-          <span className="flex items-center">
-            {column.getIsSorted() === 'asc' && <ArrowUpIcon size={14} />}
-            {column.getIsSorted() === 'desc' && <ArrowDownIcon size={14} />}
-          </span>
-        </div>
-      ),
-      cell: (info) => info.getValue() as string ?? 'Unknown Title',
-      sortingFn: 'alphanumeric',
-    },
-    {
-      accessorKey: 'metadata.artist',
-      header: ({ column }) => (
-        <div
-          className="cursor-pointer select-none flex items-center gap-1"
-          onClick={column.getToggleSortingHandler()}
-          title={column.getNextSortingOrder() === 'asc' ? 'Sort ascending' : column.getNextSortingOrder() === 'desc' ? 'Sort descending' : 'Clear sort'}
-        >
-          Artist
-          <span className="flex items-center">
-            {column.getIsSorted() === 'asc' && <ArrowUpIcon size={14} />}
-            {column.getIsSorted() === 'desc' && <ArrowDownIcon size={14} />}
-          </span>
-        </div>
-      ),
-      cell: (info) => info.getValue() as string ?? 'Unknown Artist',
-      sortingFn: 'alphanumeric',
-    },
-    {
-      accessorKey: 'metadata.album',
-      header: ({ column }) => (
-        <div
-          className="cursor-pointer select-none flex items-center gap-1"
-          onClick={column.getToggleSortingHandler()}
-          title={column.getNextSortingOrder() === 'asc' ? 'Sort ascending' : column.getNextSortingOrder() === 'desc' ? 'Sort descending' : 'Clear sort'}
-        >
-          Album
-          <span className="flex items-center">
-            {column.getIsSorted() === 'asc' && <ArrowUpIcon size={14} />}
-            {column.getIsSorted() === 'desc' && <ArrowDownIcon size={14} />}
-          </span>
-        </div>
-      ),
-      cell: (info) => info.getValue() as string ?? 'Unknown Album',
-      sortingFn: 'alphanumeric',
-    },
-    {
-      accessorKey: 'durationMs',
-      header: 'Duration',
-      cell: (info) => formatDuration(Number(info.getValue())),
-    },
-    {
-      header: 'Status',
-      cell: ({ row }) => <StatusBadge status={row.original.processingStatus} showIcon={false} />,
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1">
-          <button
-            onClick={() => handleAddToQueue(row.original)}
-            disabled={!isProcessingComplete(row.original.processingStatus)}
-            className="btn preset-outline flex items-center gap-1"
-          >
-            <PlusIcon size={14} />
-            Add
-          </button>
-          <button
-            onClick={() => setSongToDelete(row.original)}
-            className="btn-icon preset-tonal"
-            title="Delete song"
-          >
-            <Trash2Icon size={14} />
-          </button>
-        </div>
-      ),
-    },
-  ], [handleAddToQueue]);
+  const columns = useMemo<ColumnDef<Song>[]>(
+    () => [
+      {
+        id: 'cover',
+        header: '',
+        cell: ({ row }) => (
+          <CoverArt
+            key={row.original.songId}
+            songId={row.original.songId}
+            alt=""
+            className="size-10 rounded-base"
+          />
+        ),
+      },
+      {
+        id: 'title',
+        accessorFn: (song) => song.metadata?.title || 'Unknown Title',
+        header: ({ column }) => <SortableHeader label="Title" column={column} />,
+        cell: (info) => <span className="font-medium">{info.getValue<string>()}</span>,
+      },
+      {
+        id: 'artist',
+        accessorFn: (song) => song.metadata?.artist || 'Unknown Artist',
+        header: ({ column }) => <SortableHeader label="Artist" column={column} />,
+      },
+      {
+        id: 'album',
+        accessorFn: (song) => song.metadata?.album || '',
+        header: ({ column }) => <SortableHeader label="Album" column={column} />,
+      },
+      {
+        id: 'duration',
+        accessorFn: (song) => Number(song.durationMs),
+        header: ({ column }) => <SortableHeader label="Duration" column={column} />,
+        cell: (info) => <span className="font-mono text-sm">{formatDuration(info.getValue<number>())}</span>,
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        cell: ({ row }) => <StatusBadge status={row.original.processingStatus} />,
+      },
+      {
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => {
+          const song = row.original;
+          const ready = song.processingStatus === ProcessingStatus.COMPLETED;
+          return (
+            <div className="flex items-center justify-end gap-1">
+              <button
+                type="button"
+                onClick={() => player.playNow(song)}
+                disabled={!ready}
+                className="btn-icon btn-icon-sm hover:preset-tonal disabled:opacity-30"
+                title="Play now"
+              >
+                <PlayIcon className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  player.addToQueue(song);
+                  toaster.success({
+                    title: 'Added to queue',
+                    description: `${song.metadata?.title || 'Unknown Title'} — ${song.metadata?.artist || 'Unknown Artist'}`,
+                  });
+                }}
+                disabled={!ready}
+                className="btn-icon btn-icon-sm hover:preset-tonal disabled:opacity-30"
+                title="Add to queue"
+              >
+                <ListPlusIcon className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setSongToEdit(song)}
+                className="btn-icon btn-icon-sm hover:preset-tonal"
+                title="Edit metadata"
+              >
+                <PencilIcon className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setSongToDelete(song)}
+                className="btn-icon btn-icon-sm hover:preset-tonal-error"
+                title="Delete song"
+              >
+                <Trash2Icon className="size-4" />
+              </button>
+            </div>
+          );
+        },
+      },
+    ],
+    [player],
+  );
 
   const table = useReactTable({
     data: filteredSongs,
@@ -158,221 +176,195 @@ export default function SongsView() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    onPaginationChange: setPagination,
     onSortingChange: setSorting,
-    state: { pagination, sorting },
+    state: { sorting },
+    initialState: { pagination: { pageSize: PAGE_SIZES[0] } },
+    autoResetPageIndex: false,
   });
 
+  const handleDelete = async () => {
+    if (!songToDelete) return;
+    const song = songToDelete;
+    setSongToDelete(null);
+    try {
+      await deleteSong.mutateAsync(song.songId);
+      toaster.success({ title: 'Song deleted', description: song.metadata?.title || song.songId });
+    } catch (err) {
+      toaster.error({ title: 'Delete failed', description: errorMessage(err) });
+    }
+  };
+
+  const handleSaveMetadata = async (fields: SongMetadataFields) => {
+    if (!songToEdit) return;
+    try {
+      await updateSong.mutateAsync({
+        songId: songToEdit.songId,
+        // Send every field so cleared inputs clear the stored value.
+        title: fields.title ?? '',
+        artist: fields.artist ?? '',
+        album: fields.album ?? '',
+        albumArtist: fields.albumArtist ?? '',
+        genre: fields.genre ?? '',
+        lyrics: fields.lyrics ?? '',
+      });
+      setSongToEdit(null);
+      toaster.success({ title: 'Metadata saved', description: fields.title || songToEdit.songId });
+    } catch (err) {
+      toaster.error({ title: 'Save failed', description: errorMessage(err) });
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+    <div className="container mx-auto max-w-6xl space-y-6 p-4 md:p-8">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="h2">Songs</h1>
           <p className="text-surface-600-400">
-            {totalSize} {totalSize === 1 ? 'song' : 'songs'} in your library
+            {songs?.length ?? 0} {songs?.length === 1 ? 'song' : 'songs'} in your library
           </p>
         </div>
-        
-        <div className="flex gap-2">
-          <button
-            onClick={refresh}
-            disabled={loading}
-            className="btn preset-outline flex items-center gap-2"
-          >
-            <RefreshCwIcon size={16} className={loading ? 'animate-spin' : ''} />
-            Refresh
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          disabled={isRefetching}
+          className="btn preset-outlined-surface-200-800"
+        >
+          <RefreshCwIcon size={16} className={isRefetching ? 'animate-spin' : ''} />
+          Refresh
+        </button>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <label className="flex-1 max-w-md">
-          <span className="sr-only">Search songs</span>
-          <div className="relative">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400-600 size-4" />
-            <input
-              type="search"
-              placeholder="Search songs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pl-10"
-            />
-          </div>
-        </label>
-      </div>
+      <label className="relative block max-w-md">
+        <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-surface-600-400" />
+        <input
+          type="search"
+          placeholder="Search title, artist, album, genre…"
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            table.setPageIndex(0);
+          }}
+          className="input pl-10"
+        />
+      </label>
 
-      {/* Error State */}
       {error && (
         <div className="card preset-tonal-error p-4">
-          <p className="font-medium">Error loading songs</p>
-          <p className="text-sm opacity-80">{error}</p>
-          <button onClick={clearError} className="btn preset-outline mt-2">
-            Clear Error
-          </button>
+          <p className="font-medium">Failed to load songs</p>
+          <p className="text-sm opacity-80">{errorMessage(error)}</p>
         </div>
       )}
 
-      {/* Loading State */}
-      {loading && (
-        <div className="text-center py-12 space-y-4">
-          <Progress value={loadingProgress} className="items-center w-fit mx-auto">
-            <Progress.Circle>
-              <Progress.CircleTrack />
-              <Progress.CircleRange />
-            </Progress.Circle>
-            <Progress.ValueText />
+      {isLoading ? (
+        <div className="flex justify-center py-16">
+          <Progress value={null} className="w-64">
+            <Progress.Track>
+              <Progress.Range />
+            </Progress.Track>
           </Progress>
-          <p className="text-sm text-surface-600-400">
-            Loading songs library...
-          </p>
         </div>
-      )}
-
-      {/* Songs Table */}
-      {!loading && (
-        <div className="table-wrap overflow-x-auto max-h-[800px] overflow-y-auto">
-          <table className="table w-full">
-            <thead>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id} className="border-b border-surface-200-800">
-                  {headerGroup.headers.map((header) => (
-                    <th key={header.id} className="text-left p-3 font-medium">
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-surface-100-900 hover:bg-surface-100-900 transition-colors"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="p-3">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {table.getRowModel().rows.length === 0 && (
-            <div className="text-center py-12">
-              <div className="text-surface-400-600 mb-2">
-                {searchTerm ? 'No songs found matching your search' : 'No songs in your library'}
-              </div>
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="btn preset-outline"
-                >
-                  Clear search
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Client-side Pagination */}
-      {filteredSongs.length > 0 && (
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-          <span className="text-sm text-surface-600-400">
-            Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
-            {Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, filteredSongs.length)} of{' '}
-            {filteredSongs.length} entries
-          </span>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => table.firstPage()}
-              disabled={!table.getCanPreviousPage()}
-              className="btn-icon preset-outline"
-              title="First page"
-            >
-              <ChevronLeftIcon className="w-4 h-4" />
-              <ChevronLeftIcon className="w-4 h-4 -ml-3" />
-            </button>
-            <button
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-              className="btn-icon preset-outline"
-              title="Previous page"
-            >
-              <ChevronLeftIcon className="w-4 h-4" />
-            </button>
-            <span className="text-sm px-2">
-              Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-            </span>
-            <button
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-              className="btn-icon preset-outline"
-              title="Next page"
-            >
-              <ChevronRightIcon className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => table.lastPage()}
-              disabled={!table.getCanNextPage()}
-              className="btn-icon preset-outline"
-              title="Last page"
-            >
-              <ChevronRightIcon className="w-4 h-4" />
-              <ChevronRightIcon className="w-4 h-4 -ml-3" />
-            </button>
-            <label>
-              <span className="sr-only">Page size</span>
-              <select
-                value={String(table.getState().pagination.pageSize)}
-                onChange={(e) => table.setPageSize(Number(e.target.value))}
-                className="select ml-4"
-              >
-                {UI_CONFIG.PAGE_SIZE_OPTIONS.map((size) => (
-                  <option key={size} value={String(size)}>
-                    {size} per page
-                  </option>
+      ) : (
+        <>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <th key={header.id} className="text-left">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                      </th>
+                    ))}
+                  </tr>
                 ))}
-              </select>
-            </label>
+              </thead>
+              <tbody className="[&>tr]:border-b [&>tr]:border-surface-200-800">
+                {table.getRowModel().rows.map((row) => (
+                  <tr key={row.id} className="transition-colors hover:bg-surface-100-900">
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredSongs.length === 0 && (
+              <div className="py-16 text-center text-surface-600-400">
+                {searchTerm ? 'No songs match your search.' : 'Your library is empty — import some songs to get started.'}
+              </div>
+            )}
           </div>
-        </div>
-      )}
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={songToDelete !== null} onOpenChange={(details) => !details.open && setSongToDelete(null)}>
-        <Portal>
-          <Dialog.Backdrop className="fixed inset-0 z-50 bg-surface-50-950/50" />
-          <Dialog.Positioner className="fixed inset-0 z-50 flex justify-center items-center p-4">
-            <Dialog.Content className="card bg-surface-100-900 w-full max-w-md p-4 space-y-4 shadow-xl">
-              <header className="flex justify-between items-center">
-                <Dialog.Title className="text-lg font-bold">Delete Song</Dialog.Title>
-                <Dialog.CloseTrigger className="btn-icon hover:preset-tonal">
-                  <XIcon className="size-4" />
-                </Dialog.CloseTrigger>
-              </header>
-              <Dialog.Description>
-                Are you sure you want to delete "{songToDelete?.metadata?.title || 'this song'}"? This action cannot be undone.
-              </Dialog.Description>
-              <footer className="flex justify-end gap-2">
-                <Dialog.CloseTrigger className="btn preset-tonal">Cancel</Dialog.CloseTrigger>
+          {filteredSongs.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <span className="text-sm text-surface-600-400">
+                Page {table.getState().pagination.pageIndex + 1} of {Math.max(table.getPageCount(), 1)} ·{' '}
+                {filteredSongs.length} songs
+              </span>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleDelete}
-                  className="btn preset-filled-error"
+                  onClick={() => table.previousPage()}
+                  disabled={!table.getCanPreviousPage()}
+                  className="btn-icon preset-outlined-surface-200-800"
+                  aria-label="Previous page"
                 >
-                  Delete
+                  <ChevronLeftIcon className="size-4" />
                 </button>
-              </footer>
-            </Dialog.Content>
-          </Dialog.Positioner>
-        </Portal>
-      </Dialog>
+                <button
+                  type="button"
+                  onClick={() => table.nextPage()}
+                  disabled={!table.getCanNextPage()}
+                  className="btn-icon preset-outlined-surface-200-800"
+                  aria-label="Next page"
+                >
+                  <ChevronRightIcon className="size-4" />
+                </button>
+                <select
+                  value={table.getState().pagination.pageSize}
+                  onChange={(e) => table.setPageSize(Number(e.target.value))}
+                  className="select w-fit"
+                  aria-label="Page size"
+                >
+                  {PAGE_SIZES.map((size) => (
+                    <option key={size} value={size}>
+                      {size} / page
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      <ConfirmDialog
+        open={songToDelete !== null}
+        title="Delete Song"
+        message={`Delete "${songToDelete?.metadata?.title || 'this song'}"? The audio files and generated stems are removed permanently.`}
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onClose={() => setSongToDelete(null)}
+      />
+
+      {songToEdit && (
+        <MetadataDialog
+          open
+          heading="Edit Metadata"
+          subheading={songToEdit.metadata?.title || songToEdit.songId}
+          initial={{
+            title: songToEdit.metadata?.title,
+            artist: songToEdit.metadata?.artist,
+            album: songToEdit.metadata?.album,
+            albumArtist: songToEdit.metadata?.albumArtist,
+            genre: songToEdit.metadata?.genre,
+            lyrics: songToEdit.metadata?.lyrics,
+          }}
+          busy={updateSong.isPending}
+          onSave={handleSaveMetadata}
+          onClose={() => setSongToEdit(null)}
+        />
+      )}
     </div>
   );
 }
