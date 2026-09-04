@@ -236,6 +236,80 @@ func (s *Service) GetSong(ctx context.Context, req *connect.Request[voxstripv1.G
 	}), nil
 }
 
+// validateMetadataUpdates validates field lengths on an update request.
+func validateMetadataUpdates(req *voxstripv1.UpdateSongRequest) error {
+	fields := map[string]*string{
+		"title":        req.Title,
+		"artist":       req.Artist,
+		"album":        req.Album,
+		"album artist": req.AlbumArtist,
+		"genre":        req.Genre,
+	}
+	for name, value := range fields {
+		if value != nil && len(*value) > config.MaxMetadataLength {
+			return fmt.Errorf("%s exceeds maximum length of %d characters", name, config.MaxMetadataLength)
+		}
+	}
+	if req.Lyrics != nil && len(*req.Lyrics) > config.MaxLyricsLength {
+		return fmt.Errorf("lyrics exceed maximum length of %d characters", config.MaxLyricsLength)
+	}
+	return nil
+}
+
+// applyMetadataUpdates copies set fields from an update request onto metadata.
+func applyMetadataUpdates(metadata *store.Metadata, req *voxstripv1.UpdateSongRequest) {
+	if req.Title != nil {
+		metadata.Title = *req.Title
+	}
+	if req.Artist != nil {
+		metadata.Artist = *req.Artist
+	}
+	if req.Album != nil {
+		metadata.Album = *req.Album
+	}
+	if req.AlbumArtist != nil {
+		metadata.AlbumArtist = *req.AlbumArtist
+	}
+	if req.Genre != nil {
+		metadata.Genre = *req.Genre
+	}
+	if req.Lyrics != nil {
+		metadata.Lyrics = *req.Lyrics
+	}
+}
+
+// UpdateSong updates metadata for an existing song. Only fields present in the
+// request are changed; everything else keeps its current value.
+func (s *Service) UpdateSong(ctx context.Context, req *connect.Request[voxstripv1.UpdateSongRequest]) (*connect.Response[voxstripv1.UpdateSongResponse], error) {
+	slog.Info("updating song", "id", req.Msg.SongId)
+
+	if err := s.validateSongID(req.Msg.SongId); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := validateMetadataUpdates(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	song, err := s.store.GetSong(ctx, req.Msg.SongId)
+	if err != nil {
+		slog.Error("failed to get song for update", "id", req.Msg.SongId, "error", err)
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("song not found: %w", err))
+	}
+
+	applyMetadataUpdates(&song.Metadata, req.Msg)
+	song.UpdatedAt = time.Now()
+
+	if err := s.store.UpdateSong(ctx, song); err != nil {
+		slog.Error("failed to update song", "id", req.Msg.SongId, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to update song: %w", err))
+	}
+
+	slog.Info("song updated", "id", song.ID)
+	return connect.NewResponse(&voxstripv1.UpdateSongResponse{
+		Song: songToProto(song),
+	}), nil
+}
+
 // GetCoverArt retrieves cover art for a song
 func (s *Service) GetCoverArt(ctx context.Context, req *connect.Request[voxstripv1.GetCoverArtRequest]) (*connect.Response[voxstripv1.GetCoverArtResponse], error) {
 	slog.Debug("getting cover art", "id", req.Msg.SongId)
@@ -367,9 +441,13 @@ func (s *Service) DownloadAudio(ctx context.Context, req *connect.Request[voxstr
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to read audio data: %w", err))
 	}
 
-	// Generate filename
-	versionName := strings.ToLower(req.Msg.Version.String())
-	filename := fmt.Sprintf("%s_%s.%s", song.Metadata.Title, versionName, req.Msg.OutputFormat.String())
+	// Generate filename, trimming enum prefixes so the extension is usable
+	versionName := strings.ToLower(strings.TrimPrefix(req.Msg.Version.String(), "AUDIO_VERSION_"))
+	extension := strings.ToLower(strings.TrimPrefix(req.Msg.OutputFormat.String(), "AUDIO_FORMAT_"))
+	if extension == "unspecified" {
+		extension = "mp3"
+	}
+	filename := fmt.Sprintf("%s_%s.%s", song.Metadata.Title, versionName, extension)
 
 	slog.Debug("audio download completed", "id", req.Msg.SongId, "version", req.Msg.Version, "size", blobInfo.Size)
 	return connect.NewResponse(&voxstripv1.DownloadAudioResponse{

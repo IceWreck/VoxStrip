@@ -42,6 +42,9 @@ const (
 	KaraokeServiceListSongsProcedure = "/voxstrip.v1.KaraokeService/ListSongs"
 	// KaraokeServiceGetSongProcedure is the fully-qualified name of the KaraokeService's GetSong RPC.
 	KaraokeServiceGetSongProcedure = "/voxstrip.v1.KaraokeService/GetSong"
+	// KaraokeServiceUpdateSongProcedure is the fully-qualified name of the KaraokeService's UpdateSong
+	// RPC.
+	KaraokeServiceUpdateSongProcedure = "/voxstrip.v1.KaraokeService/UpdateSong"
 	// KaraokeServiceGetCoverArtProcedure is the fully-qualified name of the KaraokeService's
 	// GetCoverArt RPC.
 	KaraokeServiceGetCoverArtProcedure = "/voxstrip.v1.KaraokeService/GetCoverArt"
@@ -58,6 +61,7 @@ type KaraokeServiceClient interface {
 	ImportSongs(context.Context, *connect.Request[proto.ImportSongsRequest]) (*connect.Response[proto.ImportSongsResponse], error)
 	ListSongs(context.Context, *connect.Request[proto.ListSongsRequest]) (*connect.Response[proto.ListSongsResponse], error)
 	GetSong(context.Context, *connect.Request[proto.GetSongRequest]) (*connect.Response[proto.GetSongResponse], error)
+	UpdateSong(context.Context, *connect.Request[proto.UpdateSongRequest]) (*connect.Response[proto.UpdateSongResponse], error)
 	GetCoverArt(context.Context, *connect.Request[proto.GetCoverArtRequest]) (*connect.Response[proto.GetCoverArtResponse], error)
 	DeleteSong(context.Context, *connect.Request[proto.DeleteSongRequest]) (*connect.Response[proto.DeleteSongResponse], error)
 	DownloadAudio(context.Context, *connect.Request[proto.DownloadAudioRequest]) (*connect.Response[proto.DownloadAudioResponse], error)
@@ -92,6 +96,12 @@ func NewKaraokeServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(karaokeServiceMethods.ByName("GetSong")),
 			connect.WithClientOptions(opts...),
 		),
+		updateSong: connect.NewClient[proto.UpdateSongRequest, proto.UpdateSongResponse](
+			httpClient,
+			baseURL+KaraokeServiceUpdateSongProcedure,
+			connect.WithSchema(karaokeServiceMethods.ByName("UpdateSong")),
+			connect.WithClientOptions(opts...),
+		),
 		getCoverArt: connect.NewClient[proto.GetCoverArtRequest, proto.GetCoverArtResponse](
 			httpClient,
 			baseURL+KaraokeServiceGetCoverArtProcedure,
@@ -118,6 +128,7 @@ type karaokeServiceClient struct {
 	importSongs   *connect.Client[proto.ImportSongsRequest, proto.ImportSongsResponse]
 	listSongs     *connect.Client[proto.ListSongsRequest, proto.ListSongsResponse]
 	getSong       *connect.Client[proto.GetSongRequest, proto.GetSongResponse]
+	updateSong    *connect.Client[proto.UpdateSongRequest, proto.UpdateSongResponse]
 	getCoverArt   *connect.Client[proto.GetCoverArtRequest, proto.GetCoverArtResponse]
 	deleteSong    *connect.Client[proto.DeleteSongRequest, proto.DeleteSongResponse]
 	downloadAudio *connect.Client[proto.DownloadAudioRequest, proto.DownloadAudioResponse]
@@ -136,6 +147,11 @@ func (c *karaokeServiceClient) ListSongs(ctx context.Context, req *connect.Reque
 // GetSong calls voxstrip.v1.KaraokeService.GetSong.
 func (c *karaokeServiceClient) GetSong(ctx context.Context, req *connect.Request[proto.GetSongRequest]) (*connect.Response[proto.GetSongResponse], error) {
 	return c.getSong.CallUnary(ctx, req)
+}
+
+// UpdateSong calls voxstrip.v1.KaraokeService.UpdateSong.
+func (c *karaokeServiceClient) UpdateSong(ctx context.Context, req *connect.Request[proto.UpdateSongRequest]) (*connect.Response[proto.UpdateSongResponse], error) {
+	return c.updateSong.CallUnary(ctx, req)
 }
 
 // GetCoverArt calls voxstrip.v1.KaraokeService.GetCoverArt.
@@ -158,6 +174,7 @@ type KaraokeServiceHandler interface {
 	ImportSongs(context.Context, *connect.Request[proto.ImportSongsRequest]) (*connect.Response[proto.ImportSongsResponse], error)
 	ListSongs(context.Context, *connect.Request[proto.ListSongsRequest]) (*connect.Response[proto.ListSongsResponse], error)
 	GetSong(context.Context, *connect.Request[proto.GetSongRequest]) (*connect.Response[proto.GetSongResponse], error)
+	UpdateSong(context.Context, *connect.Request[proto.UpdateSongRequest]) (*connect.Response[proto.UpdateSongResponse], error)
 	GetCoverArt(context.Context, *connect.Request[proto.GetCoverArtRequest]) (*connect.Response[proto.GetCoverArtResponse], error)
 	DeleteSong(context.Context, *connect.Request[proto.DeleteSongRequest]) (*connect.Response[proto.DeleteSongResponse], error)
 	DownloadAudio(context.Context, *connect.Request[proto.DownloadAudioRequest]) (*connect.Response[proto.DownloadAudioResponse], error)
@@ -188,6 +205,12 @@ func NewKaraokeServiceHandler(svc KaraokeServiceHandler, opts ...connect.Handler
 		connect.WithSchema(karaokeServiceMethods.ByName("GetSong")),
 		connect.WithHandlerOptions(opts...),
 	)
+	karaokeServiceUpdateSongHandler := connect.NewUnaryHandler(
+		KaraokeServiceUpdateSongProcedure,
+		svc.UpdateSong,
+		connect.WithSchema(karaokeServiceMethods.ByName("UpdateSong")),
+		connect.WithHandlerOptions(opts...),
+	)
 	karaokeServiceGetCoverArtHandler := connect.NewUnaryHandler(
 		KaraokeServiceGetCoverArtProcedure,
 		svc.GetCoverArt,
@@ -214,6 +237,8 @@ func NewKaraokeServiceHandler(svc KaraokeServiceHandler, opts ...connect.Handler
 			karaokeServiceListSongsHandler.ServeHTTP(w, r)
 		case KaraokeServiceGetSongProcedure:
 			karaokeServiceGetSongHandler.ServeHTTP(w, r)
+		case KaraokeServiceUpdateSongProcedure:
+			karaokeServiceUpdateSongHandler.ServeHTTP(w, r)
 		case KaraokeServiceGetCoverArtProcedure:
 			karaokeServiceGetCoverArtHandler.ServeHTTP(w, r)
 		case KaraokeServiceDeleteSongProcedure:
@@ -239,6 +264,10 @@ func (UnimplementedKaraokeServiceHandler) ListSongs(context.Context, *connect.Re
 
 func (UnimplementedKaraokeServiceHandler) GetSong(context.Context, *connect.Request[proto.GetSongRequest]) (*connect.Response[proto.GetSongResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("voxstrip.v1.KaraokeService.GetSong is not implemented"))
+}
+
+func (UnimplementedKaraokeServiceHandler) UpdateSong(context.Context, *connect.Request[proto.UpdateSongRequest]) (*connect.Response[proto.UpdateSongResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("voxstrip.v1.KaraokeService.UpdateSong is not implemented"))
 }
 
 func (UnimplementedKaraokeServiceHandler) GetCoverArt(context.Context, *connect.Request[proto.GetCoverArtRequest]) (*connect.Response[proto.GetCoverArtResponse], error) {

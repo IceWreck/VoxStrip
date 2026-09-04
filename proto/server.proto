@@ -12,6 +12,7 @@ service KaraokeService {
   rpc ImportSongs(ImportSongsRequest) returns (ImportSongsResponse);
   rpc ListSongs(ListSongsRequest) returns (ListSongsResponse);
   rpc GetSong(GetSongRequest) returns (GetSongResponse);
+  rpc UpdateSong(UpdateSongRequest) returns (UpdateSongResponse);
   rpc GetCoverArt(GetCoverArtRequest) returns (GetCoverArtResponse);
   rpc DeleteSong(DeleteSongRequest) returns (DeleteSongResponse);
   rpc DownloadAudio(DownloadAudioRequest) returns (DownloadAudioResponse);
@@ -103,6 +104,20 @@ message ListSongsResponse {
 message GetSongRequest { string song_id = 1; }
 
 message GetSongResponse { Song song = 1; }
+
+// UpdateSongRequest updates song metadata. Only fields that are set are
+// applied; unset fields keep their current value.
+message UpdateSongRequest {
+  string song_id = 1;
+  optional string title = 2;
+  optional string artist = 3;
+  optional string album = 4;
+  optional string album_artist = 5;
+  optional string genre = 6;
+  optional string lyrics = 7;
+}
+
+message UpdateSongResponse { Song song = 1; }
 
 message DeleteSongRequest { string song_id = 1; }
 

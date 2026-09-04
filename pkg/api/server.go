@@ -4,7 +4,9 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
+	"slices"
 	"time"
 
 	"connectrpc.com/connect"
@@ -30,6 +32,9 @@ func NewServer(service *Service, cfg *config.Config, opts ...connect.HandlerOpti
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
+
+	// Add plain HTTP media endpoints for streaming audio and cacheable cover art
+	registerMediaRoutes(mux, service)
 
 	// Serve static React UI with SPA fallback
 	fs := http.FileServer(http.Dir("ui/dist"))
@@ -80,6 +85,21 @@ func loggingInterceptor() connect.UnaryInterceptorFunc {
 	}
 }
 
+// isAllowedOrigin reports whether a browser origin may make cross-origin
+// requests: any localhost/127.0.0.1 origin, or an exact match from the
+// configured allow-list. Same-origin requests never hit CORS at all.
+func isAllowedOrigin(origin string, configured []string) bool {
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := parsed.Hostname()
+	if host == "localhost" || host == "127.0.0.1" {
+		return true
+	}
+	return slices.Contains(configured, origin)
+}
+
 // addHTTPMiddleware adds HTTP-level middleware (CORS and recovery)
 func addHTTPMiddleware(handler http.Handler, cfg *config.Config) http.Handler {
 	// Recovery middleware
@@ -95,22 +115,15 @@ func addHTTPMiddleware(handler http.Handler, cfg *config.Config) http.Handler {
 		})
 	}
 
-	allowedOrigins := cfg.CORS.AllowedOrigins
-	if len(allowedOrigins) == 0 {
-		allowedOrigins = []string{"*"}
-	} else {
-		// Always allow localhost origins
-		allowedOrigins = append(allowedOrigins,
-			"http://localhost:*",
-			"http://127.0.0.1:*",
-			"https://localhost:*",
-			"https://127.0.0.1:*",
-		)
-	}
-
-	// CORS middleware using Connect's recommended approach
+	// CORS middleware using Connect's recommended approach. An origin
+	// allow-func (rather than a wildcard) makes the server echo the exact
+	// origin, which is required for credentialed requests: the UI always
+	// sends credentials for the reverse-proxy basicauth setup. Localhost
+	// origins are always allowed so `make ui-dev` works out of the box.
 	corsMiddleware := cors.New(cors.Options{
-		AllowedOrigins:   allowedOrigins,
+		AllowOriginFunc: func(origin string) bool {
+			return isAllowedOrigin(origin, cfg.CORS.AllowedOrigins)
+		},
 		AllowedMethods:   connectcors.AllowedMethods(),
 		AllowedHeaders:   connectcors.AllowedHeaders(),
 		ExposedHeaders:   connectcors.ExposedHeaders(),
