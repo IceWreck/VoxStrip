@@ -53,7 +53,7 @@ func (s *inmemoryStore) GetSong(ctx context.Context, id string) (*store.Song, er
 
 	song, exists := s.songs[id]
 	if !exists {
-		return nil, fmt.Errorf("song with id %s not found", id)
+		return nil, fmt.Errorf("song with id %s: %w", id, store.ErrNotFound)
 	}
 
 	// Return a copy to avoid external mutations
@@ -138,7 +138,7 @@ func (s *inmemoryStore) UpdateSong(ctx context.Context, song *store.Song) error 
 	defer s.mu.Unlock()
 
 	if _, exists := s.songs[song.ID]; !exists {
-		return fmt.Errorf("song with id %s not found", song.ID)
+		return fmt.Errorf("song with id %s: %w", song.ID, store.ErrNotFound)
 	}
 
 	// Create a copy to avoid external mutations
@@ -156,7 +156,7 @@ func (s *inmemoryStore) DeleteSong(ctx context.Context, id string) error {
 	defer s.mu.Unlock()
 
 	if _, exists := s.songs[id]; !exists {
-		return fmt.Errorf("song with id %s not found", id)
+		return fmt.Errorf("song with id %s: %w", id, store.ErrNotFound)
 	}
 
 	delete(s.songs, id)

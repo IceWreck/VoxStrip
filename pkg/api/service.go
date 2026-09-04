@@ -73,6 +73,15 @@ func (s *Service) validateImportSongRequest(req *voxstripv1.ImportSongRequest) e
 	return nil
 }
 
+// songError maps store errors onto connect codes so a missing song is a
+// not-found while a genuine store failure surfaces as an internal error.
+func songError(err error) *connect.Error {
+	if errors.Is(err, store.ErrNotFound) {
+		return connect.NewError(connect.CodeNotFound, err)
+	}
+	return connect.NewError(connect.CodeInternal, fmt.Errorf("store failure: %w", err))
+}
+
 // validateSongID validates that a song ID is a proper UUID format
 func (s *Service) validateSongID(songID string) error {
 	if songID == "" {
@@ -227,7 +236,7 @@ func (s *Service) GetSong(ctx context.Context, req *connect.Request[voxstripv1.G
 	song, err := s.store.GetSong(ctx, req.Msg.SongId)
 	if err != nil {
 		slog.Error("failed to get song", "id", req.Msg.SongId, "error", err)
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("song not found: %w", err))
+		return nil, songError(err)
 	}
 
 	slog.Debug("song retrieved", "id", song.ID)
@@ -293,7 +302,7 @@ func (s *Service) UpdateSong(ctx context.Context, req *connect.Request[voxstripv
 	song, err := s.store.GetSong(ctx, req.Msg.SongId)
 	if err != nil {
 		slog.Error("failed to get song for update", "id", req.Msg.SongId, "error", err)
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("song not found: %w", err))
+		return nil, songError(err)
 	}
 
 	applyMetadataUpdates(&song.Metadata, req.Msg)
@@ -323,7 +332,7 @@ func (s *Service) GetCoverArt(ctx context.Context, req *connect.Request[voxstrip
 	_, err := s.store.GetSong(ctx, req.Msg.SongId)
 	if err != nil {
 		slog.Error("failed to get song for cover art", "id", req.Msg.SongId, "error", err)
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("song not found: %w", err))
+		return nil, songError(err)
 	}
 
 	// Read cover art from blobstore
@@ -365,7 +374,7 @@ func (s *Service) DeleteSong(ctx context.Context, req *connect.Request[voxstripv
 
 	if err := s.store.DeleteSong(ctx, req.Msg.SongId); err != nil {
 		slog.Error("failed to delete song", "id", req.Msg.SongId, "error", err)
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("song not found: %w", err))
+		return nil, songError(err)
 	}
 
 	// Delete associated files from blobstore
@@ -390,7 +399,7 @@ func (s *Service) DownloadAudio(ctx context.Context, req *connect.Request[voxstr
 	song, err := s.store.GetSong(ctx, req.Msg.SongId)
 	if err != nil {
 		slog.Error("failed to get song for download", "id", req.Msg.SongId, "error", err)
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("song not found: %w", err))
+		return nil, songError(err)
 	}
 
 	// Check if song processing is completed

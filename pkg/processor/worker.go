@@ -3,6 +3,7 @@ package processor
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -87,9 +88,12 @@ func (w *worker) processNextSong(ctx context.Context) error {
 func (w *worker) finishProcessing(ctx context.Context, processed *store.Song, status store.ProcessingStatus, processingError string) error {
 	fresh, err := w.store.GetSong(ctx, processed.ID)
 	if err != nil {
-		// The song was deleted while processing; nothing to update.
-		slog.Warn("song vanished during processing", "song_id", processed.ID, "error", err)
-		return nil
+		if errors.Is(err, store.ErrNotFound) {
+			// The song was deleted while processing; nothing to update.
+			slog.Warn("song vanished during processing", "song_id", processed.ID)
+			return nil
+		}
+		return fmt.Errorf("failed to reload song: %w", err)
 	}
 
 	fillEmptyMetadata(&fresh.Metadata, &processed.Metadata)

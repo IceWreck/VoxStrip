@@ -47,7 +47,12 @@ func serveMedia(service *Service, w http.ResponseWriter, r *http.Request, fileTy
 
 	song, err := service.store.GetSong(r.Context(), songID)
 	if err != nil {
-		http.Error(w, "song not found", http.StatusNotFound)
+		if errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "song not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("failed to get song for media", "id", songID, "error", err)
+		http.Error(w, "failed to load song", http.StatusInternalServerError)
 		return
 	}
 	if requireCompleted && song.ProcessingStatus != store.ProcessingStatusCompleted {

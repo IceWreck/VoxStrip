@@ -121,7 +121,7 @@ func (s *sqliteStore) GetSong(ctx context.Context, id string) (*store.Song, erro
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("song with id %s not found", id)
+			return nil, fmt.Errorf("song with id %s: %w", id, store.ErrNotFound)
 		}
 		slog.Error("failed to get song", "id", id, "error", err)
 		return nil, fmt.Errorf("failed to get song: %w", err)
@@ -274,7 +274,7 @@ func (s *sqliteStore) UpdateSong(ctx context.Context, song *store.Song) error {
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("song with id %s not found", song.ID)
+		return fmt.Errorf("song with id %s: %w", song.ID, store.ErrNotFound)
 	}
 
 	slog.Debug("song updated successfully", "id", song.ID)
@@ -297,7 +297,7 @@ func (s *sqliteStore) DeleteSong(ctx context.Context, id string) error {
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("song with id %s not found", id)
+		return fmt.Errorf("song with id %s: %w", id, store.ErrNotFound)
 	}
 
 	slog.Debug("song deleted successfully", "id", id)

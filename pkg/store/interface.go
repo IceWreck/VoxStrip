@@ -2,8 +2,13 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrNotFound is returned when a song does not exist. Callers use errors.Is
+// to distinguish a missing song from a store failure.
+var ErrNotFound = errors.New("song not found")
 
 // ProcessingStatus represents the processing state of a song
 type ProcessingStatus int32
