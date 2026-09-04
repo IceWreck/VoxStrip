@@ -1,9 +1,6 @@
 package api
 
 import (
-	"fmt"
-	"time"
-
 	voxstripv1 "github.com/IceWreck/VoxStrip/gen/proto"
 	"github.com/IceWreck/VoxStrip/pkg/store"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -26,38 +23,6 @@ func songToProto(song *store.Song) *voxstripv1.Song {
 	}
 }
 
-// protoToSong converts a voxstripv1.Song to store.Song
-func protoToSong(protoSong *voxstripv1.Song) (*store.Song, error) {
-	if protoSong == nil {
-		return nil, fmt.Errorf("proto song is nil")
-	}
-
-	createdAt, err := timestampToTime(protoSong.CreatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("invalid created_at timestamp: %w", err)
-	}
-
-	updatedAt, err := timestampToTime(protoSong.UpdatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("invalid updated_at timestamp: %w", err)
-	}
-
-	metadata, err := protoToMetadata(protoSong.Metadata)
-	if err != nil {
-		return nil, fmt.Errorf("invalid metadata: %w", err)
-	}
-
-	return &store.Song{
-		ID:               protoSong.SongId,
-		Metadata:         *metadata,
-		CreatedAt:        createdAt,
-		UpdatedAt:        updatedAt,
-		ProcessingStatus: processingStatusFromProto(protoSong.ProcessingStatus),
-		ProcessingError:  protoSong.ProcessingError,
-		DurationMs:       protoSong.DurationMs,
-	}, nil
-}
-
 // metadataToProto converts store.Metadata to voxstripv1.SongMetadata
 func metadataToProto(metadata store.Metadata) *voxstripv1.SongMetadata {
 	return &voxstripv1.SongMetadata{
@@ -68,22 +33,6 @@ func metadataToProto(metadata store.Metadata) *voxstripv1.SongMetadata {
 		Genre:       metadata.Genre,
 		Lyrics:      metadata.Lyrics,
 	}
-}
-
-// protoToMetadata converts voxstripv1.SongMetadata to store.Metadata
-func protoToMetadata(protoMetadata *voxstripv1.SongMetadata) (*store.Metadata, error) {
-	if protoMetadata == nil {
-		return nil, fmt.Errorf("proto metadata is nil")
-	}
-
-	return &store.Metadata{
-		Title:       protoMetadata.Title,
-		Artist:      protoMetadata.Artist,
-		Album:       protoMetadata.Album,
-		AlbumArtist: protoMetadata.AlbumArtist,
-		Genre:       protoMetadata.Genre,
-		Lyrics:      protoMetadata.Lyrics,
-	}, nil
 }
 
 // processingStatusToProto converts store.ProcessingStatus to voxstripv1.ProcessingStatus
@@ -120,17 +69,6 @@ func processingStatusFromProto(status voxstripv1.ProcessingStatus) store.Process
 	default:
 		return store.ProcessingStatusUnspecified
 	}
-}
-
-// timestampToTime converts timestamppb.Timestamp to time.Time
-func timestampToTime(ts *timestamppb.Timestamp) (time.Time, error) {
-	if ts == nil {
-		return time.Time{}, fmt.Errorf("timestamp is nil")
-	}
-	if !ts.IsValid() {
-		return time.Time{}, fmt.Errorf("invalid timestamp")
-	}
-	return ts.AsTime(), nil
 }
 
 // songsToProto converts a slice of store.Song to a slice of voxstripv1.Song

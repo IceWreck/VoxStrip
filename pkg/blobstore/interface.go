@@ -37,11 +37,8 @@ type BlobInfo struct {
 	LastModified time.Time // File modification time
 }
 
-// Common errors
-var (
-	ErrNotFound = errors.New("blob not found")
-	ErrExists   = errors.New("blob already exists")
-)
+// ErrNotFound is returned when a blob does not exist.
+var ErrNotFound = errors.New("blob not found")
 
 // Store defines the interface for blob storage operations
 type Store interface {
