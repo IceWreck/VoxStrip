@@ -60,8 +60,8 @@ func (e *taglibMetadataExtractor) extractMetadata(ctx context.Context, audioPath
 		Lyrics:      getFirst("LYRICS"),
 	}
 
-	// Convert duration from seconds to milliseconds
-	duration := int64(props.Length * 1000)
+	// props.Length is a time.Duration (nanoseconds), not seconds
+	duration := props.Length.Milliseconds()
 
 	slog.Debug("metadata extracted",
 		"title", metadata.Title,
