@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { FileUpload, Progress } from '@skeletonlabs/skeleton-react';
 import {
@@ -19,6 +19,10 @@ import { toaster } from '../toaster';
 import MetadataDialog, { type SongMetadataFields } from '../components/MetadataDialog';
 
 type StagedStatus = 'staged' | 'uploading' | 'done' | 'failed';
+
+// Uploads carry the whole audio file in one request, so the default 30s RPC
+// deadline would fail large files on slow uplinks.
+const IMPORT_TIMEOUT_MS = 10 * 60 * 1000;
 
 interface StagedFile {
   id: string;
@@ -49,6 +53,16 @@ export default function ImportView() {
   const { data: songs } = useSongs();
   const queryClient = useQueryClient();
   const importAbort = useRef(false);
+  const [progress, setProgress] = useState<{ processed: number; total: number } | null>(null);
+
+  // Stop the import loop after the in-flight file when the view unmounts;
+  // otherwise it would keep uploading invisibly.
+  useEffect(() => {
+    importAbort.current = false;
+    return () => {
+      importAbort.current = true;
+    };
+  }, []);
 
   const libraryTitles = useMemo(() => {
     const titles = new Set<string>();
@@ -85,7 +99,7 @@ export default function ImportView() {
     if (pending.length === 0 || importing) return;
 
     setImporting(true);
-    importAbort.current = false;
+    setProgress({ processed: 0, total: pending.length });
     let succeeded = 0;
     let failed = 0;
 
@@ -98,20 +112,23 @@ export default function ImportView() {
           ? new Uint8Array(await item.coverArtFile.arrayBuffer())
           : undefined;
 
-        const response = await api.importSongs({
-          songs: [
-            {
-              audio,
-              coverArtOverride,
-              titleOverride: item.overrides.title,
-              artistOverride: item.overrides.artist,
-              albumOverride: item.overrides.album,
-              albumArtistOverride: item.overrides.albumArtist,
-              genreOverride: item.overrides.genre,
-              lyricsOverride: item.overrides.lyrics,
-            },
-          ],
-        });
+        const response = await api.importSongs(
+          {
+            songs: [
+              {
+                audio,
+                coverArtOverride,
+                titleOverride: item.overrides.title,
+                artistOverride: item.overrides.artist,
+                albumOverride: item.overrides.album,
+                albumArtistOverride: item.overrides.albumArtist,
+                genreOverride: item.overrides.genre,
+                lyricsOverride: item.overrides.lyrics,
+              },
+            ],
+          },
+          { timeoutMs: IMPORT_TIMEOUT_MS },
+        );
 
         const result = response.results[0];
         if (result && result.status !== ProcessingStatus.FAILED) {
@@ -125,11 +142,13 @@ export default function ImportView() {
         failed++;
         updateStaged(item.id, { status: 'failed', error: errorMessage(err) });
       }
+      setProgress((prev) => (prev ? { ...prev, processed: prev.processed + 1 } : prev));
       // Keep the library (and duplicate detection) fresh as songs land.
       queryClient.invalidateQueries({ queryKey: songsQueryKey });
     }
 
     setImporting(false);
+    setProgress(null);
     // Successful uploads leave the staging area; failures stay for retry.
     setStaged((prev) => prev.filter((item) => item.status !== 'done'));
 
@@ -144,8 +163,6 @@ export default function ImportView() {
 
   const editing = staged.find((item) => item.id === editingId);
   const pendingCount = staged.filter((item) => item.status === 'staged' || item.status === 'failed').length;
-  const doneCount = staged.filter((item) => item.status === 'done').length;
-  const progress = importing ? (doneCount / Math.max(staged.length, 1)) * 100 : null;
 
   return (
     <div className="container mx-auto max-w-4xl space-y-6 p-4 md:p-8">
@@ -236,7 +253,7 @@ export default function ImportView() {
           </ul>
 
           {progress !== null && (
-            <Progress value={progress}>
+            <Progress value={(progress.processed / Math.max(progress.total, 1)) * 100}>
               <Progress.Track>
                 <Progress.Range />
               </Progress.Track>

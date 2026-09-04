@@ -1,15 +1,16 @@
 import { Link } from '@tanstack/react-router';
-import { Slider } from '@skeletonlabs/skeleton-react';
 import { PauseIcon, PlayIcon, SkipBackIcon, SkipForwardIcon } from 'lucide-react';
-import { usePlayer } from '../player/store';
+import { usePlayback, usePlayer } from '../player/store';
 import { formatTime } from '../lib/format';
 import CoverArt from './CoverArt';
+import PlayerSlider from './PlayerSlider';
 
 // MiniPlayer is the persistent now-playing bar shown at the bottom of every
 // library view, so playback stays controllable while browsing.
 export default function MiniPlayer() {
   const player = usePlayer();
-  const { currentSong, engine } = player;
+  const playback = usePlayback();
+  const { currentSong } = player;
 
   if (!currentSong) return null;
 
@@ -42,9 +43,9 @@ export default function MiniPlayer() {
           type="button"
           onClick={player.togglePlay}
           className="btn-icon preset-filled-primary-500"
-          aria-label={engine.isPlaying ? 'Pause' : 'Play'}
+          aria-label={playback.isPlaying ? 'Pause' : 'Play'}
         >
-          {engine.isPlaying ? <PauseIcon className="size-5" /> : <PlayIcon className="size-5" />}
+          {playback.isPlaying ? <PauseIcon className="size-5" /> : <PlayIcon className="size-5" />}
         </button>
         <button
           type="button"
@@ -58,25 +59,16 @@ export default function MiniPlayer() {
       </div>
 
       <div className="hidden flex-1 items-center gap-3 sm:flex">
-        <span className="font-mono text-xs text-surface-600-400">{formatTime(engine.currentTime)}</span>
-        <Slider
-          value={[engine.currentTime]}
-          max={engine.duration || 1}
+        <span className="font-mono text-xs text-surface-600-400">{formatTime(playback.currentTime)}</span>
+        <PlayerSlider
+          value={playback.currentTime}
+          max={playback.duration}
           step={1}
-          onValueChange={(details) => player.seek(details.value[0])}
+          onChange={player.seek}
+          ariaLabel="Seek"
           className="flex-1"
-          aria-label={['Seek']}
-        >
-          <Slider.Control>
-            <Slider.Track>
-              <Slider.Range />
-            </Slider.Track>
-            <Slider.Thumb index={0}>
-              <Slider.HiddenInput />
-            </Slider.Thumb>
-          </Slider.Control>
-        </Slider>
-        <span className="font-mono text-xs text-surface-600-400">{formatTime(engine.duration)}</span>
+        />
+        <span className="font-mono text-xs text-surface-600-400">{formatTime(playback.duration)}</span>
       </div>
     </div>
   );

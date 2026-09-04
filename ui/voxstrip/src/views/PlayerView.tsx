@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Link } from '@tanstack/react-router';
-import { SegmentedControl, Slider } from '@skeletonlabs/skeleton-react';
+import { SegmentedControl } from '@skeletonlabs/skeleton-react';
 import {
   ListMusicIcon,
   MicVocalIcon,
@@ -14,13 +14,13 @@ import {
   Volume2Icon,
   VolumeXIcon,
 } from 'lucide-react';
-import { usePlayer } from '../player/store';
+import { usePlayback, usePlayer } from '../player/store';
 import { activeLineIndex, parseLyrics } from '../lib/lyrics';
 import { useCoverColors } from '../lib/useCoverColors';
 import { formatTime } from '../lib/format';
-import { toaster } from '../toaster';
 import CoverArt from '../components/CoverArt';
 import LyricsDisplay from '../components/LyricsDisplay';
+import PlayerSlider from '../components/PlayerSlider';
 import type { PlayMode } from '../player/engine';
 
 const LYRICS_NUDGE_MS = 250;
@@ -33,17 +33,12 @@ function openStageWindow() {
 // gradient, with playback, vocal-guide blend, and stage display controls.
 export default function PlayerView() {
   const player = usePlayer();
-  const { currentSong, engine } = player;
+  const playback = usePlayback();
+  const { currentSong } = player;
   const colors = useCoverColors(currentSong?.songId ?? null);
 
   const lyrics = useMemo(() => parseLyrics(currentSong?.metadata?.lyrics), [currentSong?.metadata?.lyrics]);
-  const activeIndex = activeLineIndex(lyrics, engine.currentTime, player.lyricsOffsetMs);
-
-  useEffect(() => {
-    if (engine.error) {
-      toaster.error({ title: 'Playback error', description: engine.error });
-    }
-  }, [engine.error]);
+  const activeIndex = activeLineIndex(lyrics, playback.currentTime, player.lyricsOffsetMs);
 
   if (!currentSong) {
     return (
@@ -79,26 +74,17 @@ export default function PlayerView() {
 
       <div className="relative z-10 border-t border-white/10 bg-surface-50-950/80 p-4 backdrop-blur-md">
         <div className="mb-1 flex justify-between font-mono text-xs text-surface-600-400">
-          <span>{formatTime(engine.currentTime)}</span>
-          <span>{formatTime(engine.duration)}</span>
+          <span>{formatTime(playback.currentTime)}</span>
+          <span>{formatTime(playback.duration)}</span>
         </div>
-        <Slider
-          value={[engine.currentTime]}
-          max={engine.duration || 1}
+        <PlayerSlider
+          value={playback.currentTime}
+          max={playback.duration}
           step={0.5}
-          onValueChange={(details) => player.seek(details.value[0])}
+          onChange={player.seek}
+          ariaLabel="Seek"
           className="mb-4"
-          aria-label={['Seek']}
-        >
-          <Slider.Control>
-            <Slider.Track>
-              <Slider.Range />
-            </Slider.Track>
-            <Slider.Thumb index={0}>
-              <Slider.HiddenInput />
-            </Slider.Thumb>
-          </Slider.Control>
-        </Slider>
+        />
 
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           {/* Song identity + transport */}
@@ -128,9 +114,9 @@ export default function PlayerView() {
               type="button"
               onClick={player.togglePlay}
               className="btn-icon btn-icon-lg preset-filled-primary-500 shadow-lg"
-              aria-label={engine.isPlaying ? 'Pause' : 'Play'}
+              aria-label={playback.isPlaying ? 'Pause' : 'Play'}
             >
-              {engine.isPlaying ? <PauseIcon className="size-6" /> : <PlayIcon className="size-6" />}
+              {playback.isPlaying ? <PauseIcon className="size-6" /> : <PlayIcon className="size-6" />}
             </button>
             <button
               type="button"
@@ -167,23 +153,15 @@ export default function PlayerView() {
               title="Guide vocals level"
             >
               <MicVocalIcon className="size-4 shrink-0 text-surface-600-400" />
-              <Slider
-                value={[player.vocalLevel * 100]}
+              <PlayerSlider
+                value={player.vocalLevel * 100}
                 max={100}
                 step={5}
-                onValueChange={(details) => player.setVocalLevel(details.value[0] / 100)}
+                continuous
+                onChange={(v) => player.setVocalLevel(v / 100)}
+                ariaLabel="Guide vocal level"
                 className="w-28"
-                aria-label={['Guide vocal level']}
-              >
-                <Slider.Control>
-                  <Slider.Track>
-                    <Slider.Range />
-                  </Slider.Track>
-                  <Slider.Thumb index={0}>
-                    <Slider.HiddenInput />
-                  </Slider.Thumb>
-                </Slider.Control>
-              </Slider>
+              />
               <span className="w-8 font-mono text-xs text-surface-600-400">{Math.round(player.vocalLevel * 100)}%</span>
             </div>
           </div>
@@ -192,29 +170,21 @@ export default function PlayerView() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => player.setVolume(player.volume > 0 ? 0 : 1)}
+              onClick={player.toggleMute}
               className="btn-icon hover:preset-tonal"
               aria-label="Toggle mute"
             >
               {player.volume > 0 ? <Volume2Icon className="size-4" /> : <VolumeXIcon className="size-4" />}
             </button>
-            <Slider
-              value={[player.volume * 100]}
+            <PlayerSlider
+              value={player.volume * 100}
               max={100}
               step={5}
-              onValueChange={(details) => player.setVolume(details.value[0] / 100)}
+              continuous
+              onChange={(v) => player.setVolume(v / 100)}
+              ariaLabel="Volume"
               className="w-24"
-              aria-label={['Volume']}
-            >
-              <Slider.Control>
-                <Slider.Track>
-                  <Slider.Range />
-                </Slider.Track>
-                <Slider.Thumb index={0}>
-                  <Slider.HiddenInput />
-                </Slider.Thumb>
-              </Slider.Control>
-            </Slider>
+            />
 
             {lyrics.synced && (
               <div className="flex items-center gap-1" title="Nudge lyrics timing">

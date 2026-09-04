@@ -8,7 +8,7 @@ import { fromJson, toJson, type JsonValue } from '@bufbuild/protobuf';
 import { KaraokeService, SongSchema } from '../proto/server_pb';
 import type { Song } from '../proto/server_pb';
 
-export type { Song, SongMetadata } from '../proto/server_pb';
+export type { Song } from '../proto/server_pb';
 export { ProcessingStatus } from '../proto/server_pb';
 
 // Empty means same-origin; the dev server sets VITE_API_BASE_URL instead.

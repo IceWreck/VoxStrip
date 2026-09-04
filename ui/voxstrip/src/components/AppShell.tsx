@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toast } from '@skeletonlabs/skeleton-react';
 import Sidebar from './Sidebar';
 import MiniPlayer from './MiniPlayer';
-import { PlayerProvider, usePlayer } from '../player/store';
+import { PlayerProvider, usePlayback, usePlayer } from '../player/store';
 import { toaster } from '../toaster';
 
 const queryClient = new QueryClient({
@@ -22,7 +22,9 @@ function useKeyboardShortcuts() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement;
-      if (target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+      // Slider thumbs keep focus after interaction and handle arrows
+      // themselves; global seek on top would double-fire.
+      if (target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="slider"]')) return;
 
       switch (event.key) {
         case ' ':
@@ -48,8 +50,21 @@ function useKeyboardShortcuts() {
   }, [player]);
 }
 
+// usePlaybackErrorToasts surfaces playback failures on every view, not just
+// the full player — a load error with only the mini player visible would
+// otherwise be silent.
+function usePlaybackErrorToasts() {
+  const { error } = usePlayback();
+  useEffect(() => {
+    if (error) {
+      toaster.error({ title: 'Playback error', description: error });
+    }
+  }, [error]);
+}
+
 function ShellLayout() {
   useKeyboardShortcuts();
+  usePlaybackErrorToasts();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   // The full player has its own control bar; the mini player would duplicate it.
   const showMiniPlayer = pathname !== '/player';

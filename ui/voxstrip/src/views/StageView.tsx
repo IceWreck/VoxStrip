@@ -45,7 +45,10 @@ export default function StageView() {
     const tick = () => {
       const current = stateRef.current;
       if (current) {
-        const elapsed = current.isPlaying ? (performance.now() - current.receivedAt) / 1000 : 0;
+        // Broadcasts arrive several times a second while playing; if they
+        // stop (main window closed), freeze instead of extrapolating forever.
+        const sinceUpdate = (performance.now() - current.receivedAt) / 1000;
+        const elapsed = current.isPlaying ? Math.min(sinceUpdate, 3) : 0;
         setDisplayTime(Math.min(current.currentTime + elapsed, current.duration || Infinity));
       }
       frame = requestAnimationFrame(tick);

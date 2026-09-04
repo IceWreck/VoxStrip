@@ -11,22 +11,32 @@ export interface Lyrics {
   lines: LyricLine[];
   // True when enough lines carry timestamps to drive synchronized display.
   synced: boolean;
+  // Offset declared by the file's [offset:] tag, in milliseconds. Positive
+  // values shift lyrics earlier, matching the LRC convention.
+  offsetMs: number;
 }
 
 const TIMESTAMP_PATTERN = /\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
 const METADATA_PATTERN = /^\[(ar|ti|al|au|by|offset|re|ve|length):.*\]$/i;
+const OFFSET_PATTERN = /^\[offset:\s*([+-]?\d+)\s*\]$/i;
 
 // parseLyrics parses plain or LRC-formatted lyrics. Lines with multiple
 // timestamps are expanded into one entry per timestamp; LRC metadata tags are
-// dropped. Synced lines are sorted by time.
+// dropped, except [offset:] which is applied. Synced lines are sorted by time.
 export function parseLyrics(raw?: string): Lyrics {
-  if (!raw?.trim()) return { lines: [], synced: false };
+  if (!raw?.trim()) return { lines: [], synced: false, offsetMs: 0 };
 
   const lines: LyricLine[] = [];
   let timestamped = 0;
+  let offsetMs = 0;
 
   for (const rawLine of raw.split('\n')) {
     const line = rawLine.trim();
+    const offsetMatch = line.match(OFFSET_PATTERN);
+    if (offsetMatch) {
+      offsetMs = Number(offsetMatch[1]);
+      continue;
+    }
     if (!line || METADATA_PATTERN.test(line)) continue;
 
     const stamps = [...line.matchAll(TIMESTAMP_PATTERN)];
@@ -53,16 +63,16 @@ export function parseLyrics(raw?: string): Lyrics {
   if (synced) {
     lines.sort((a, b) => (a.time ?? 0) - (b.time ?? 0));
   }
-  return { lines, synced };
+  return { lines, synced, offsetMs };
 }
 
 // activeLineIndex returns the index of the line being sung at the given
-// playback position, or -1 before the first timestamped line. The offset
-// shifts timing to compensate for badly synced files.
-export function activeLineIndex(lyrics: Lyrics, positionSeconds: number, offsetMs = 0): number {
+// playback position, or -1 before the first timestamped line. The user
+// offset stacks on top of the file's own [offset:] tag.
+export function activeLineIndex(lyrics: Lyrics, positionSeconds: number, userOffsetMs = 0): number {
   if (!lyrics.synced) return -1;
 
-  const position = positionSeconds + offsetMs / 1000;
+  const position = positionSeconds + (lyrics.offsetMs + userOffsetMs) / 1000;
   let active = -1;
   for (let i = 0; i < lyrics.lines.length; i++) {
     const time = lyrics.lines[i].time;

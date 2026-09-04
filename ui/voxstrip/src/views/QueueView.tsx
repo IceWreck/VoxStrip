@@ -1,7 +1,7 @@
 import { useState, type DragEvent } from 'react';
 import { Link } from '@tanstack/react-router';
 import { GripVerticalIcon, ListMusicIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react';
-import { usePlayer } from '../player/store';
+import { usePlayback, usePlayer } from '../player/store';
 import { formatDuration } from '../lib/format';
 import CoverArt from '../components/CoverArt';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -10,6 +10,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 // reorder, remove entries, or clear everything.
 export default function QueueView() {
   const player = usePlayer();
+  const { isPlaying } = usePlayback();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
 
@@ -58,6 +59,7 @@ export default function QueueView() {
                 key={item.queueId}
                 draggable
                 onDragStart={() => setDraggedIndex(index)}
+                onDragEnd={() => setDraggedIndex(null)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop(index)}
                 className={`card group flex cursor-grab items-center gap-3 p-2 transition-colors ${
@@ -73,7 +75,7 @@ export default function QueueView() {
                   type="button"
                   onClick={() => (isCurrent ? player.togglePlay() : player.playAt(index))}
                   className="relative shrink-0"
-                  aria-label={isCurrent && player.engine.isPlaying ? 'Pause' : 'Play this song'}
+                  aria-label={isCurrent && isPlaying ? 'Pause' : 'Play this song'}
                 >
                   <CoverArt
                     key={item.song.songId}
@@ -82,7 +84,7 @@ export default function QueueView() {
                     className="size-12 rounded-base"
                   />
                   <span className="absolute inset-0 flex items-center justify-center rounded-base bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                    {isCurrent && player.engine.isPlaying ? (
+                    {isCurrent && isPlaying ? (
                       <PauseIcon className="size-5 text-white" />
                     ) : (
                       <PlayIcon className="size-5 text-white" />
@@ -99,7 +101,7 @@ export default function QueueView() {
 
                 {isCurrent && (
                   <span className="badge preset-filled-primary-500 shrink-0">
-                    {player.engine.isPlaying ? 'Playing' : 'Paused'}
+                    {isPlaying ? 'Playing' : 'Paused'}
                   </span>
                 )}
 
