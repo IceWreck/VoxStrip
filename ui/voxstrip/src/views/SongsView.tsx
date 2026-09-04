@@ -78,12 +78,14 @@ export default function SongsView() {
       {
         id: 'cover',
         header: '',
+        // min-w counters the browser's max-width:100% img default, which
+        // would otherwise crush the thumbnail when other columns are wide.
         cell: ({ row }) => (
           <CoverArt
             key={row.original.songId}
             songId={row.original.songId}
             alt=""
-            className="size-10 rounded-base"
+            className="size-10 min-w-10 rounded-base"
           />
         ),
       },
@@ -91,23 +93,39 @@ export default function SongsView() {
         id: 'title',
         accessorFn: (song) => song.metadata?.title || 'Unknown Title',
         header: ({ column }) => <SortableHeader label="Title" column={column} />,
-        cell: (info) => <span className="font-medium">{info.getValue<string>()}</span>,
+        cell: (info) => (
+          <div className="line-clamp-2 max-w-72 font-medium" title={info.getValue<string>()}>
+            {info.getValue<string>()}
+          </div>
+        ),
       },
       {
         id: 'artist',
         accessorFn: (song) => song.metadata?.artist || 'Unknown Artist',
         header: ({ column }) => <SortableHeader label="Artist" column={column} />,
+        cell: (info) => (
+          <div className="line-clamp-2 max-w-64" title={info.getValue<string>()}>
+            {info.getValue<string>()}
+          </div>
+        ),
       },
       {
         id: 'album',
         accessorFn: (song) => song.metadata?.album || '',
         header: ({ column }) => <SortableHeader label="Album" column={column} />,
+        cell: (info) => (
+          <div className="line-clamp-2 max-w-56" title={info.getValue<string>()}>
+            {info.getValue<string>()}
+          </div>
+        ),
       },
       {
         id: 'duration',
         accessorFn: (song) => Number(song.durationMs),
         header: ({ column }) => <SortableHeader label="Duration" column={column} />,
-        cell: (info) => <span className="font-mono text-sm">{formatDuration(info.getValue<number>())}</span>,
+        cell: (info) => (
+          <span className="whitespace-nowrap font-mono text-sm">{formatDuration(info.getValue<number>())}</span>
+        ),
       },
       {
         id: 'status',
