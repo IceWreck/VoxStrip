@@ -9,14 +9,19 @@ projector.
 ## Usage
 
 ```sh
-make build          # build ./bin/voxstrip
-make run            # run the server (API + UI on :8080)
+make build          # build the frontend, then ./bin/voxstrip with it embedded
+make ui-build       # build just the frontend into pkg/webui/dist
+make run            # run the backend for development (no UI embedded)
 make ui-dev         # frontend dev server on :5173, pointed at :8080
 make check          # gofmt + goimports + go vet
 make buf-gen        # regenerate protobuf (Go + TypeScript)
 ```
 
-The server serves the built UI from `ui/dist` in its working directory. Audio
+The frontend is compiled into the binary with `go:embed`, so `make build`
+produces a self-contained `./bin/voxstrip` that serves the UI with no files
+alongside it. For development, run the backend with `make run` and the frontend
+with `make ui-dev` on :5173 — `make run` skips the frontend build, so the
+server's own UI routes return "ui not bundled into this binary". Audio
 processing shells out to demucs; the default command
 (`uvx --with torchcodec --with numpy demucs`) fetches it on demand into uv's cache, so a
 working [uv](https://docs.astral.sh/uv/) install is all you need. A GPU speeds

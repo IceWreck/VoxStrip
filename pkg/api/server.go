@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"slices"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	connectcors "connectrpc.com/cors"
 	voxstripv1connect "github.com/IceWreck/VoxStrip/gen/proto/voxstripv1connect"
 	"github.com/IceWreck/VoxStrip/pkg/config"
+	"github.com/IceWreck/VoxStrip/pkg/webui"
 	"github.com/rs/cors"
 )
 
@@ -40,16 +40,10 @@ func NewServer(service *Service, cfg *config.Config, opts ...connect.HandlerOpti
 	// Add plain HTTP media endpoints for streaming audio and cacheable cover art
 	registerMediaRoutes(mux, service)
 
-	// Serve static React UI with SPA fallback
-	fs := http.FileServer(http.Dir("ui/dist"))
-	mux.Handle("/ui/", http.StripPrefix("/ui", fs))
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if _, err := os.Stat("ui/dist" + r.URL.Path); err == nil {
-			fs.ServeHTTP(w, r)
-		} else {
-			http.ServeFile(w, r, "ui/dist/index.html")
-		}
-	})
+	// Serve the React UI embedded in the binary, with SPA fallback
+	ui := webui.Handler()
+	mux.Handle("/ui/", http.StripPrefix("/ui", ui))
+	mux.Handle("/", ui)
 
 	// Add HTTP middleware for CORS and recovery
 	handlerWithMiddleware := addHTTPMiddleware(mux, cfg)

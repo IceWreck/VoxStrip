@@ -9,7 +9,8 @@ ARG VITE_API_BASE_URL=""
 
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
-WORKDIR /app/ui
+# Mirrors the repo layout so vite's relative outDir resolves the same way.
+WORKDIR /app/ui/voxstrip
 
 COPY ui/voxstrip/package*.json ./
 RUN npm ci
@@ -27,6 +28,9 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
+
+# Must land before go build so go:embed picks it up.
+COPY --from=frontend-builder /app/pkg/webui/dist ./pkg/webui/dist
 
 RUN go build -v -o ./bin/voxstrip ./cmd
 
@@ -70,7 +74,6 @@ RUN groupadd -r voxstrip -g 1000 && \
 WORKDIR /app
 
 COPY --from=backend-builder /app/bin/voxstrip /app/voxstrip
-COPY --from=frontend-builder /app/ui/dist /app/ui/dist
 
 RUN chown -R voxstrip:voxstrip /app
 

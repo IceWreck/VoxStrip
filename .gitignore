@@ -6,3 +6,5 @@
 .agentcohort
 /temp
 /cmd/datamigrate
+/pkg/webui/dist/*
+!/pkg/webui/dist/.gitkeep

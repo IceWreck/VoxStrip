@@ -8,8 +8,13 @@ SHELL := /bin/bash
 run:
 	go run ./cmd
 
-build:
+build: ui-build
 	go build -v -o ./bin/voxstrip ./cmd
+
+# touch restores the placeholder go:embed needs; vite's emptyOutDir wipes it.
+ui-build:
+	cd ui/voxstrip && npm install && npm run build
+	touch pkg/webui/dist/.gitkeep
 
 buf-gen:
 	buf generate
@@ -23,6 +28,7 @@ vet:
 
 clean:
 	rm -rf ./bin
+	find ./pkg/webui/dist -mindepth 1 ! -name .gitkeep -delete
 
 deps:
 	go mod download

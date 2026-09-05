@@ -8,6 +8,7 @@ data/
 temp/
 ui/voxstrip/node_modules/
 ui/voxstrip/dist/
+pkg/webui/dist/
 AGENTS.md
 CLAUDE.md
 .venv

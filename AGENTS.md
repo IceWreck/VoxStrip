@@ -23,7 +23,8 @@ VoxStrip (Go-based AI Karaoke System)
 │   └── External Tools: demucs (vocal separation)
 ├── UI Layer (React + Skeleton.dev)
 │   ├── Generated TypeScript client at ui/voxstrip/src/proto/
-│   └── Skeleton.dev based interface at ui/voxstrip/
+│   ├── Skeleton.dev based interface at ui/voxstrip/
+│   └── Vite build embedded in the binary via pkg/webui (go:embed)
 └── Configuration (Environment-based)
     ├── Server: Host, Port, CORS settings
     ├── Storage: Upload/processed file paths
