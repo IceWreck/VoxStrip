@@ -1,6 +1,8 @@
 // Cross-window messaging between the main app (which owns audio and controls)
 // and read-only stage display windows, over a BroadcastChannel.
 
+import type { SampleState, ScoreSummary } from '../lib/scoring';
+
 export const STAGE_CHANNEL = 'voxstrip:stage';
 
 // StageSong carries everything a stage window needs to render a song without
@@ -31,6 +33,19 @@ export type StageMessage =
       accuracy: number;
       lastLine: { index: number; rating: string } | null;
       finished: boolean;
+    }
+  // One mic pitch reading, published per sample (~33/s) while scoring is
+  // active so stage windows can draw the live pitch trace.
+  | {
+      type: 'trace';
+      time: number;
+      midi: number | null;
+      state: SampleState;
+    }
+  // End-of-song results card; null when the main window dismisses it.
+  | {
+      type: 'summary';
+      summary: ScoreSummary | null;
     }
   // Sent by a stage window on startup to request an immediate state publish.
   | { type: 'hello' };

@@ -110,7 +110,7 @@ export default function PlayerView() {
 
       {scoring.enabled && (
         <div className="relative z-10 px-4 pb-1">
-          <PitchLane />
+          <PitchLane laneRef={scoring.laneRef} active={scoring.enabled} />
         </div>
       )}
 

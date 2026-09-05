@@ -24,6 +24,7 @@ import { ScoringSession, type FinishedLine, type ScoreSnapshot, type ScoreSummar
 import { loadJSON, saveJSON } from '../lib/storage';
 import { openStageChannel, type StageMessage } from './broadcast';
 import { usePlayback, usePlayer } from './store';
+import type { LaneData } from '../components/PitchLane';
 
 // Default compensation for output + mic latency: the singer hears the music
 // late and the mic reading arrives late, so a sample at engine time t was
@@ -36,20 +37,6 @@ const SNAPSHOT_INTERVAL_MS = 250;
 // A song counts as finished for the score summary when playback gets within
 // this many seconds of the end.
 const SONG_END_WINDOW_SECONDS = 0.4;
-
-export interface TraceSample {
-  time: number;
-  midi: number | null;
-  state: SampleState;
-}
-
-// LaneData is mutable shared state for the canvas pitch lane, read every
-// animation frame without going through React.
-export interface LaneData {
-  notes: PitchNote[];
-  trace: TraceSample[];
-  songTime: () => number;
-}
 
 export interface ScoringContextValue {
   // True when the mic is live and samples are being scored.
@@ -214,16 +201,24 @@ export function ScoringProvider({ children }: { children: ReactNode }) {
       }
       lane.trace.push({ time: scoredTime, midi: sample.midi, state });
       while (lane.trace.length > 0 && lane.trace[0].time < now - 10) lane.trace.shift();
+      channelRef.current?.postMessage({
+        type: 'trace',
+        time: scoredTime,
+        midi: sample.midi,
+        state,
+      } satisfies StageMessage);
 
       if (!session || !currentSongId) return;
 
       // Song end: freeze the session into a summary exactly once.
       if (!summaryDoneRef.current && p.duration > 0 && p.currentTime >= p.duration - SONG_END_WINDOW_SECONDS) {
         summaryDoneRef.current = true;
-        setSummary(session.summary());
+        const result = session.summary();
+        setSummary(result);
         const snapshot = session.snapshot();
         setLiveState({ songId: currentSongId, snapshot });
         broadcast(snapshot, true);
+        channelRef.current?.postMessage({ type: 'summary', summary: result } satisfies StageMessage);
         return;
       }
 
@@ -254,14 +249,19 @@ export function ScoringProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const clearSummary = useCallback(() => {
+    setSummary(null);
+    channelRef.current?.postMessage({ type: 'summary', summary: null } satisfies StageMessage);
+  }, []);
+
   const disable = useCallback(() => {
     monitorRef.current?.close();
     monitorRef.current = null;
     setEnabled(false);
     setLiveState(null);
-    setSummary(null);
+    clearSummary();
     broadcast(null, false);
-  }, [broadcast]);
+  }, [broadcast, clearSummary]);
 
   // Release the mic when the provider unmounts.
   useEffect(() => {
@@ -271,7 +271,7 @@ export function ScoringProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const dismissSummary = useCallback(() => setSummary(null), []);
+  const dismissSummary = clearSummary;
 
   const setMicOffsetMs = useCallback((offsetMs: number) => {
     setMicOffsetMsState(offsetMs);

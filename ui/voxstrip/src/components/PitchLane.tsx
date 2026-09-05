@@ -1,11 +1,26 @@
 // PitchLane renders the SingStar-style pitch view: reference note bars
 // scrolling right to left with the singer's live pitch trace over them. It
-// draws straight from the scoring provider's mutable lane data every frame,
-// so nothing here re-renders React during singing.
+// draws straight from mutable lane data every frame, so nothing here
+// re-renders React during singing. The player view feeds it from the scoring
+// provider; the stage window feeds it from broadcast messages.
 
-import { useEffect, useRef } from 'react';
-import { useScoring } from '../player/scoring';
-import { foldSemitones } from '../lib/scoring';
+import { useEffect, useRef, type RefObject } from 'react';
+import { foldSemitones, type SampleState } from '../lib/scoring';
+import type { PitchNote } from '../lib/pitchTrack';
+
+export interface TraceSample {
+  time: number;
+  midi: number | null;
+  state: SampleState;
+}
+
+// LaneData is the mutable shared state a lane owner keeps updated and the
+// canvas reads every animation frame.
+export interface LaneData {
+  notes: PitchNote[];
+  trace: TraceSample[];
+  songTime: () => number;
+}
 
 // Visible time window around the playhead, in seconds.
 const PAST_SECONDS = 2;
@@ -23,12 +38,11 @@ const TRACE_COLORS: Record<string, string> = {
   silent: 'rgba(255,255,255,0.2)',
 };
 
-export default function PitchLane() {
-  const { laneRef, enabled } = useScoring();
+export default function PitchLane({ laneRef, active }: { laneRef: RefObject<LaneData>; active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!active) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const context = canvas.getContext('2d');
@@ -104,9 +118,9 @@ export default function PitchLane() {
 
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [enabled, laneRef]);
+  }, [active, laneRef]);
 
-  if (!enabled) return null;
+  if (!active) return null;
   return <canvas ref={canvasRef} className="h-24 w-full" />;
 }
 
