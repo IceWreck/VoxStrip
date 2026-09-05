@@ -1,3 +1,11 @@
+// WARNING: This file was vibecoded with an AI and the maintainer does not
+// fully understand the DSP inside it. It somewhat works, so re-run the
+// package tests after touching anything here.
+//
+// This file gets audio into analyzable shape: decode an MP3 stream to raw
+// samples, mix stereo down to mono, and resample to the fixed 16kHz rate the
+// detector expects.
+
 package pitch
 
 import (

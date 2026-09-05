@@ -1,3 +1,13 @@
+// WARNING: This package was vibecoded with an AI and the maintainer does not
+// fully understand the DSP inside it. It somewhat works — validated against
+// synthetic tones (pitch_test.go) and real vocal stems (realdata_test.go) —
+// so re-run those tests after touching anything here.
+//
+// This file turns per-frame pitch detections into a note list: it frames the
+// audio, gates quiet frames, median-filters the pitch curve, groups voiced
+// frames into notes (splitting on pitch jumps and gaps), and serializes the
+// result to the JSON blob the UI scores against.
+
 // Package pitch extracts a reference pitch track from a separated vocal stem.
 // The track is a sequence of sung notes (start, duration, fractional MIDI
 // pitch) that the UI scores live singing against and renders as note bars.

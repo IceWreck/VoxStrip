@@ -1,3 +1,9 @@
+// WARNING: This file was vibecoded with an AI along with the rest of the
+// package. These tests are the safety net for code the maintainer does not
+// fully understand: they synthesize known tones (single notes, vibrato,
+// interval jumps, silence, noise, a full semitone sweep of the singing
+// range) and assert the extractor hears what was synthesized.
+
 package pitch
 
 import (

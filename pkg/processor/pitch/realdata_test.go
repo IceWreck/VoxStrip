@@ -1,3 +1,8 @@
+// WARNING: This file was vibecoded with an AI along with the rest of the
+// package. It is a manual harness, not an assertion suite: point it at a
+// real vocal stem and eyeball the note count, sung time, and pitch range it
+// prints.
+
 package pitch
 
 import (

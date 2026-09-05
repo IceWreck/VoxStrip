@@ -1,3 +1,13 @@
+// WARNING: This file was vibecoded with an AI and the maintainer does not
+// fully understand the DSP inside it. It somewhat works — the sweep test in
+// pitch_test.go checks every semitone of the singing range — so re-run the
+// tests after touching anything here.
+//
+// This file answers one question: what pitch is sounding in a single 64ms
+// window of audio? It implements the McLeod pitch method: autocorrelate the
+// window (normalized, "NSDF"), find the repeating-period peaks, and pick the
+// first strong one as the fundamental frequency.
+
 package pitch
 
 import "math"
