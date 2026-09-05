@@ -31,6 +31,9 @@ var MimeToExt = map[string]string{
 	"image/jpeg": ".jpg",
 	"image/gif":  ".gif",
 	"image/webp": ".webp",
+
+	// data (for pitch tracks)
+	"application/json": ".json",
 }
 
 var ExtToMime = func() map[string]string {

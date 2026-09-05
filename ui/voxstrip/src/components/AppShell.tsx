@@ -5,6 +5,7 @@ import { Toast } from '@skeletonlabs/skeleton-react';
 import Sidebar from './Sidebar';
 import MiniPlayer from './MiniPlayer';
 import { PlayerProvider, usePlayback, usePlayer } from '../player/store';
+import { ScoringProvider } from '../player/scoring';
 import { toaster } from '../toaster';
 
 const queryClient = new QueryClient({
@@ -100,7 +101,9 @@ export default function AppShell() {
   return (
     <QueryClientProvider client={queryClient}>
       <PlayerProvider>
-        <ShellLayout />
+        <ScoringProvider>
+          <ShellLayout />
+        </ScoringProvider>
       </PlayerProvider>
     </QueryClientProvider>
   );

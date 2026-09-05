@@ -13,6 +13,7 @@ import (
 
 	"github.com/IceWreck/VoxStrip/pkg/blobstore"
 	"github.com/IceWreck/VoxStrip/pkg/config"
+	"github.com/IceWreck/VoxStrip/pkg/processor/pitch"
 	"github.com/IceWreck/VoxStrip/pkg/store"
 )
 
@@ -173,6 +174,40 @@ func (w *worker) processSong(ctx context.Context, song *store.Song) error {
 		return fmt.Errorf("failed to store instrumental file: %w", err)
 	}
 
+	// Step 5: Extract the reference pitch track used for singing scoring.
+	// Scoring is optional, so a failed extraction degrades the song instead
+	// of failing it.
+	if err := w.extractAndStorePitch(ctx, song.ID, vocalPath); err != nil {
+		slog.Warn("failed to extract pitch track", "song_id", song.ID, "error", err)
+	}
+
+	return nil
+}
+
+// extractAndStorePitch computes the pitch track of the separated vocal stem
+// and stores it as a JSON blob.
+func (w *worker) extractAndStorePitch(ctx context.Context, songID, vocalPath string) error {
+	file, err := os.Open(vocalPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	track, err := pitch.ExtractFromMP3(file)
+	if err != nil {
+		return err
+	}
+
+	data, err := track.Marshal()
+	if err != nil {
+		return err
+	}
+
+	if _, err := w.blobStore.Store(ctx, songID, blobstore.FileTypePitch, bytes.NewReader(data)); err != nil {
+		return err
+	}
+
+	slog.Debug("pitch track stored", "song_id", songID, "notes", len(track.Notes))
 	return nil
 }
 

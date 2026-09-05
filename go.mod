@@ -8,6 +8,7 @@ require (
 	github.com/caarlos0/env/v11 v11.3.1
 	github.com/gabriel-vasile/mimetype v1.4.12
 	github.com/google/uuid v1.6.0
+	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/rs/cors v1.11.1
 	go.senan.xyz/taglib v0.11.1
 	google.golang.org/protobuf v1.36.10

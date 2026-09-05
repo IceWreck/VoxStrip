@@ -15,11 +15,20 @@ interface StageState {
   receivedAt: number;
 }
 
+interface StageScore {
+  active: boolean;
+  score: number;
+  combo: number;
+  accuracy: number;
+  finished: boolean;
+}
+
 // StageView is the read-only karaoke display for a second window dragged to a
 // TV or projector. It renders state broadcast by the main window and owns no
 // audio. Click anywhere to toggle fullscreen.
 export default function StageView() {
   const [state, setState] = useState<StageState | null>(null);
+  const [score, setScore] = useState<StageScore | null>(null);
   // Interpolate playback position between broadcasts for smooth lyric timing.
   const [displayTime, setDisplayTime] = useState(0);
   const stateRef = useRef<StageState | null>(null);
@@ -27,6 +36,10 @@ export default function StageView() {
   useEffect(() => {
     const channel = openStageChannel();
     const onMessage = (event: MessageEvent<StageMessage>) => {
+      if (event.data.type === 'score') {
+        setScore(event.data.active ? event.data : null);
+        return;
+      }
       if (event.data.type !== 'state') return;
       const next: StageState = { ...event.data, receivedAt: performance.now() };
       stateRef.current = next;
@@ -82,6 +95,14 @@ export default function StageView() {
 
       {song ? (
         <>
+          {score && (
+            <div className="absolute top-8 right-8 z-20 rounded-container bg-black/40 px-6 py-3 text-right text-white backdrop-blur-sm">
+              <p className="text-5xl font-black tabular-nums drop-shadow-lg">{score.score}</p>
+              <p className="text-lg text-white/70">
+                {score.finished ? 'Final score' : score.combo > 1 ? `×${score.combo} streak` : `${Math.round(score.accuracy * 100)}%`}
+              </p>
+            </div>
+          )}
           <div className="relative z-10 flex h-full items-center justify-center p-12">
             <div className="max-h-full w-full max-w-7xl">
               <LyricsDisplay lyrics={lyrics} activeIndex={activeIndex} stage />

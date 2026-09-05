@@ -22,6 +22,16 @@ export type StageMessage =
       duration: number;
       lyricsOffsetMs: number;
     }
+  // Published by the main window while singing scoring is active.
+  | {
+      type: 'score';
+      active: boolean;
+      score: number;
+      combo: number;
+      accuracy: number;
+      lastLine: { index: number; rating: string } | null;
+      finished: boolean;
+    }
   // Sent by a stage window on startup to request an immediate state publish.
   | { type: 'hello' };
 

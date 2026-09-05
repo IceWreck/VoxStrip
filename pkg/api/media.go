@@ -33,6 +33,9 @@ func registerMediaRoutes(mux *http.ServeMux, service *Service) {
 		}
 		serveMedia(service, w, r, fileType, true)
 	})
+	mux.HandleFunc("GET /media/{songID}/pitch", func(w http.ResponseWriter, r *http.Request) {
+		serveMedia(service, w, r, blobstore.FileTypePitch, true)
+	})
 }
 
 // serveMedia streams a blob for a song over HTTP. Audio requires processing to

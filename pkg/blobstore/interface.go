@@ -27,7 +27,12 @@ const (
 	FileTypeVocal        FileType = "vocal"        // Separated vocals
 	FileTypeInstrumental FileType = "instrumental" // Separated instruments
 	FileTypeCoverArt     FileType = "cover_art"    // Cover art images
+	FileTypePitch        FileType = "pitch"        // Reference pitch tracks (JSON)
 )
+
+// AllFileTypes lists every file type a song can have, for directory setup and
+// whole-song deletion.
+var AllFileTypes = []FileType{FileTypeOriginal, FileTypeVocal, FileTypeInstrumental, FileTypeCoverArt, FileTypePitch}
 
 // BlobInfo contains metadata about a stored blob
 type BlobInfo struct {

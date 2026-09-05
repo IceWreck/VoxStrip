@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link } from '@tanstack/react-router';
 import { SegmentedControl } from '@skeletonlabs/skeleton-react';
 import {
   ListMusicIcon,
+  MicIcon,
+  MicOffIcon,
   MicVocalIcon,
   MinusIcon,
   MonitorUpIcon,
@@ -15,15 +17,28 @@ import {
   VolumeXIcon,
 } from 'lucide-react';
 import { usePlayback, usePlayer } from '../player/store';
+import { useScoring } from '../player/scoring';
 import { activeLineIndex, parseLyrics } from '../lib/lyrics';
 import { useCoverColors } from '../lib/useCoverColors';
 import { formatTime } from '../lib/format';
 import CoverArt from '../components/CoverArt';
 import LyricsDisplay from '../components/LyricsDisplay';
+import PitchLane from '../components/PitchLane';
 import PlayerSlider from '../components/PlayerSlider';
+import ScoreSummary from '../components/ScoreSummary';
+import { toaster } from '../toaster';
 import type { PlayMode } from '../player/engine';
 
 const LYRICS_NUDGE_MS = 250;
+const MIC_NUDGE_MS = 50;
+
+const RATING_LABELS: Record<string, string> = {
+  perfect: 'Perfect!',
+  great: 'Great!',
+  good: 'Good',
+  ok: 'OK',
+  miss: 'Miss',
+};
 
 function openStageWindow() {
   window.open('/stage', 'voxstrip-stage', 'popup,width=1280,height=720');
@@ -34,11 +49,18 @@ function openStageWindow() {
 export default function PlayerView() {
   const player = usePlayer();
   const playback = usePlayback();
+  const scoring = useScoring();
   const { currentSong } = player;
   const colors = useCoverColors(currentSong?.songId ?? null);
 
   const lyrics = useMemo(() => parseLyrics(currentSong?.metadata?.lyrics), [currentSong?.metadata?.lyrics]);
   const activeIndex = activeLineIndex(lyrics, playback.currentTime, player.lyricsOffsetMs);
+
+  useEffect(() => {
+    if (scoring.micError) {
+      toaster.error({ title: 'Microphone unavailable', description: scoring.micError });
+    }
+  }, [scoring.micError]);
 
   if (!currentSong) {
     return (
@@ -66,11 +88,33 @@ export default function PlayerView() {
       />
       <div className="absolute inset-0 bg-black/55" />
 
+      {scoring.enabled && (
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-3 rounded-container bg-black/40 px-4 py-2 text-white backdrop-blur-sm">
+          {scoring.lastFinished && (
+            <span key={scoring.lastFinished.key} className="text-sm font-semibold text-emerald-300">
+              {RATING_LABELS[scoring.lastFinished.rating]}
+            </span>
+          )}
+          {(scoring.live?.combo ?? 0) > 1 && (
+            <span className="text-sm font-semibold text-amber-300">×{scoring.live!.combo}</span>
+          )}
+          <span className="text-2xl font-black tabular-nums">{scoring.live?.score ?? 0}</span>
+        </div>
+      )}
+
       <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center p-6">
         <div className="max-h-full w-full max-w-5xl">
           <LyricsDisplay lyrics={lyrics} activeIndex={activeIndex} onLineClick={(t) => player.seek(t)} />
         </div>
       </div>
+
+      {scoring.enabled && (
+        <div className="relative z-10 px-4 pb-1">
+          <PitchLane />
+        </div>
+      )}
+
+      {scoring.summary && <ScoreSummary summary={scoring.summary} onClose={scoring.dismissSummary} />}
 
       <div className="relative z-10 border-t border-white/10 bg-surface-50-950/80 p-4 backdrop-blur-md">
         <div className="mb-1 flex justify-between font-mono text-xs text-surface-600-400">
@@ -166,8 +210,48 @@ export default function PlayerView() {
             </div>
           </div>
 
-          {/* Volume, lyric offset, stage, queue */}
+          {/* Volume, lyric offset, scoring, stage, queue */}
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => (scoring.enabled ? scoring.disable() : void scoring.enable())}
+              disabled={!scoring.available}
+              className={`btn-icon ${scoring.enabled ? 'preset-filled-primary-500' : 'hover:preset-tonal'} disabled:opacity-40`}
+              title={
+                scoring.available
+                  ? scoring.enabled
+                    ? 'Stop scoring'
+                    : 'Score my singing'
+                  : 'No pitch track for this song yet'
+              }
+            >
+              {scoring.enabled ? <MicIcon className="size-4" /> : <MicOffIcon className="size-4" />}
+            </button>
+
+            {scoring.enabled && (
+              <div className="flex items-center gap-1" title="Mic timing calibration (higher if your notes register late)">
+                <button
+                  type="button"
+                  onClick={() => scoring.setMicOffsetMs(scoring.micOffsetMs - MIC_NUDGE_MS)}
+                  className="btn-icon btn-icon-sm hover:preset-tonal"
+                  aria-label="Mic offset earlier"
+                >
+                  <MinusIcon className="size-3" />
+                </button>
+                <span className="w-14 text-center font-mono text-xs text-surface-600-400">
+                  🎤 {scoring.micOffsetMs} ms
+                </span>
+                <button
+                  type="button"
+                  onClick={() => scoring.setMicOffsetMs(scoring.micOffsetMs + MIC_NUDGE_MS)}
+                  className="btn-icon btn-icon-sm hover:preset-tonal"
+                  aria-label="Mic offset later"
+                >
+                  <PlusIcon className="size-3" />
+                </button>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={player.toggleMute}

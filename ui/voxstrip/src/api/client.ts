@@ -30,6 +30,7 @@ export type AudioVersionName = 'original' | 'vocal' | 'instrumental';
 export const mediaUrl = {
   cover: (songId: string) => `${API_BASE}/media/${songId}/cover`,
   audio: (songId: string, version: AudioVersionName) => `${API_BASE}/media/${songId}/audio/${version}`,
+  pitch: (songId: string) => `${API_BASE}/media/${songId}/pitch`,
 };
 
 // songToJSON/songFromJSON convert songs for localStorage persistence and
