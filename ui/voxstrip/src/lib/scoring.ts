@@ -6,12 +6,19 @@
 import type { Lyrics } from './lyrics';
 import { noteAtTime, type PitchNote } from './pitchTrack';
 
-// Comparison tolerances. Within half a semitone of the reference is a full
-// hit; within a good margin earns partial credit. The timing window forgives
-// mic latency and attack/release edges.
-const PERFECT_SEMITONES = 0.5;
-const GOOD_SEMITONES = 1.25;
-const TIMING_WINDOW_SECONDS = 0.2;
+// Comparison tolerances, tuned forgiving: this is a party game, not a
+// conservatory exam. Within three quarters of a semitone is a full hit;
+// within two semitones still earns most of the credit. The timing window
+// forgives mic latency and honest human timing spread.
+const PERFECT_SEMITONES = 0.75;
+const GOOD_SEMITONES = 2.0;
+const NEAR_CREDIT = 0.6;
+const TIMING_WINDOW_SECONDS = 0.3;
+
+// Unpitched instants during a reference note (breaths, consonants, note
+// attacks) count as this fraction of a sample, so pausing for air dents the
+// line accuracy instead of cratering it.
+const SILENCE_SAMPLE_WEIGHT = 0.4;
 
 export type SampleState = 'rest' | 'hit' | 'near' | 'off' | 'silent';
 
@@ -30,10 +37,10 @@ export interface SampleFeedback {
 export type LineRating = 'perfect' | 'great' | 'good' | 'ok' | 'miss';
 
 const RATING_THRESHOLDS: Array<[number, LineRating]> = [
-  [0.9, 'perfect'],
-  [0.72, 'great'],
-  [0.5, 'good'],
-  [0.25, 'ok'],
+  [0.85, 'perfect'],
+  [0.65, 'great'],
+  [0.42, 'good'],
+  [0.18, 'ok'],
 ];
 
 export interface LineScore {
@@ -101,7 +108,7 @@ export function foldSemitones(sungMidi: number, targetMidi: number): number {
 function creditFor(semitonesOff: number): number {
   const distance = Math.abs(semitonesOff);
   if (distance <= PERFECT_SEMITONES) return 1;
-  if (distance <= GOOD_SEMITONES) return 0.5;
+  if (distance <= GOOD_SEMITONES) return NEAR_CREDIT;
   return 0;
 }
 
@@ -156,12 +163,13 @@ export class ScoringSession {
     }
 
     const line = this.activeLineScore();
-    line.scoredSamples++;
 
     if (sungMidi === null) {
+      line.scoredSamples += SILENCE_SAMPLE_WEIGHT;
       return { state: 'silent', targetMidi: target.midi, sungMidi: null, semitonesOff: null, credit: 0 };
     }
 
+    line.scoredSamples++;
     const semitonesOff = foldSemitones(sungMidi, target.midi);
     const credit = creditFor(semitonesOff);
     line.earnedCredit += credit;
