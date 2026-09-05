@@ -1,3 +1,8 @@
+# BASE_IMAGE and TORCH_INDEX select the variant: the defaults build the
+# CPU-only image; pass the CUDA base image and wheel index for the NVIDIA one
+# (see the container-build-gpu Makefile target).
+ARG BASE_IMAGE=docker.io/ubuntu:22.04
+
 FROM docker.io/node:22-alpine AS frontend-builder
 
 ARG VITE_API_BASE_URL=""
@@ -25,7 +30,9 @@ COPY . .
 
 RUN go build -v -o ./bin/voxstrip ./cmd
 
-FROM docker.io/nvidia/cuda:12.4.0-base-ubuntu22.04
+FROM ${BASE_IMAGE}
+
+ARG TORCH_INDEX=https://download.pytorch.org/whl/cpu
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TORCH_HOME=/data/models \
@@ -42,8 +49,12 @@ RUN apt update && apt install -y --no-install-recommends \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m pip install "torch==2.4.0" "torchaudio==2.4.0" --index-url https://download.pytorch.org/whl/cu124 --no-cache-dir && \
-    python3 -m pip install "demucs>=4.0.1" --no-cache-dir
+# Torch is installed first from the variant's wheel index so demucs (which
+# depends on torch) doesn't pull the CUDA-bundled PyPI build into the CPU
+# image. numpy is listed explicitly because demucs 4.1.0 needs it at runtime
+# but omits it from its Linux dependency metadata.
+RUN python3 -m pip install "torch==2.4.0" --index-url "${TORCH_INDEX}" --no-cache-dir && \
+    python3 -m pip install "demucs==4.1.0" numpy --no-cache-dir
 
 # Trigger demucs model download by running it on a test audio file
 # This ensures models are cached in TORCH_HOME before the container starts

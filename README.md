@@ -22,12 +22,17 @@ processing shells out to demucs; the default command
 working [uv](https://docs.astral.sh/uv/) install is all you need. A GPU speeds
 up separation considerably.
 
-Or run it as a container:
+Or run it as a container. The Dockerfile builds two variants via build args
+(`BASE_IMAGE`, `TORCH_INDEX`): the default is CPU-only torch (much smaller),
+the NVIDIA variant uses a CUDA base image and CUDA torch wheels. Releases
+publish both to GHCR as `ghcr.io/<owner>/voxstrip:<version>` and
+`ghcr.io/<owner>/voxstrip:<version>-nvidia`.
 
 ```sh
-make container-build
-make container-run       # CPU
-make container-run-gpu   # NVIDIA GPU (CDI)
+make container-build       # CPU image
+make container-run         # CPU
+make container-build-gpu   # NVIDIA image
+make container-run-gpu     # NVIDIA GPU (CDI)
 ```
 
 ## Configuration
