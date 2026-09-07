@@ -29,9 +29,22 @@ up separation considerably.
 
 Or run it as a container. The Dockerfile builds two variants via build args
 (`BASE_IMAGE`, `TORCH_INDEX`): the default is CPU-only torch (much smaller),
-the NVIDIA variant uses a CUDA base image and CUDA torch wheels. Releases
-publish both to GHCR as `ghcr.io/<owner>/voxstrip:<version>` and
-`ghcr.io/<owner>/voxstrip:<version>-nvidia`.
+the NVIDIA variant uses a CUDA base image and CUDA torch wheels. Both are
+published to GHCR:
+
+| Image | Variant |
+| --- | --- |
+| `ghcr.io/icewreck/voxstrip` | CPU-only |
+| `ghcr.io/icewreck/voxstrip:latest-nvidia` | NVIDIA CUDA |
+
+Publishing a release tags `latest`, the full version, and `major.minor` (e.g.
+`:1.2.3`, `:1.2`); a manual workflow run from `main` tags `:main`. Every tag
+also exists with a `-nvidia` suffix for the CUDA variant.
+
+```sh
+podman pull ghcr.io/icewreck/voxstrip:latest
+podman pull ghcr.io/icewreck/voxstrip:latest-nvidia
+```
 
 ```sh
 make container-build       # CPU image
