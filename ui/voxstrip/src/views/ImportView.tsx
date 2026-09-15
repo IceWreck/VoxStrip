@@ -15,6 +15,7 @@ import {
 import { api, ProcessingStatus, errorMessage } from '../api/client';
 import { songsQueryKey, useSongs } from '../queries/songs';
 import { formatFileSize } from '../lib/format';
+import { uuid } from '../lib/uuid';
 import { toaster } from '../toaster';
 import MetadataDialog, { type SongMetadataFields } from '../components/MetadataDialog';
 
@@ -82,7 +83,7 @@ export default function ImportView() {
     setStaged((prev) => [
       ...prev,
       ...files.map((file) => ({
-        id: crypto.randomUUID(),
+        id: uuid(),
         file,
         overrides: {},
         status: 'staged' as const,

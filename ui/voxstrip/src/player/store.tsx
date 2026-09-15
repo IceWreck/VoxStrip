@@ -20,6 +20,7 @@ import {
 import type { JsonValue } from '@bufbuild/protobuf';
 import { ProcessingStatus, songFromJSON, songToJSON, type Song } from '../api/client';
 import { loadJSON, saveJSON } from '../lib/storage';
+import { uuid } from '../lib/uuid';
 import { PlayerEngine, type EngineState, type PlayMode } from './engine';
 import { openStageChannel, type StageMessage } from './broadcast';
 
@@ -93,7 +94,7 @@ function restoreState(): RestoredState {
   const queue: QueueItem[] = [];
   for (const json of persistedQueue?.songs ?? []) {
     const song = songFromJSON(json);
-    if (song) queue.push({ song, queueId: crypto.randomUUID() });
+    if (song) queue.push({ song, queueId: uuid() });
   }
   const currentIndex =
     queue.length > 0 ? Math.min(Math.max(persistedQueue?.currentIndex ?? 0, 0), queue.length - 1) : -1;
@@ -232,7 +233,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // refs is accurate and keeps updaters pure.
   const addToQueue = useCallback((song: Song) => {
     if (song.processingStatus !== ProcessingStatus.COMPLETED) return;
-    setQueue([...queueRef.current, { song, queueId: crypto.randomUUID() }]);
+    setQueue([...queueRef.current, { song, queueId: uuid() }]);
     if (indexRef.current === -1) setCurrentIndex(0);
   }, []);
 
@@ -251,7 +252,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (song.processingStatus !== ProcessingStatus.COMPLETED) return;
     autoplayRef.current = true;
     setLyricsOffsetMs(0);
-    setQueue([...queueRef.current, { song, queueId: crypto.randomUUID() }]);
+    setQueue([...queueRef.current, { song, queueId: uuid() }]);
     setCurrentIndex(queueRef.current.length);
   }, []);
 
